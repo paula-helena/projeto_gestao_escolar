@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Cadastro - Professor</title>
+    <style>
+        input[readonly] { background-color: #e9ecef; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <h2>Cadastro de Novo Professor</h2>
+    
+    <form id="formCadastro">
+        <label>Nome:</label> <input type="text" id="nome" required><br>
+        <label>E-mail:</label> <input type="email" id="email" required><br>
+        <label>Senha:</label> <input type="password" id="senha" required><br>
+        <label>Disciplina:</label> <input type="text" id="disciplina" required><br>
+        
+        <hr>
+        <label>CEP:</label> 
+        <input type="text" id="cep" maxlength="9" required><br>
+        
+        <label>Logradouro:</label> <input type="text" id="logradouro" required><br>
+        <label>Bairro:</label> <input type="text" id="bairro" required><br>
+        <label>Cidade:</label> <input type="text" id="cidade" required><br>
+        <label>UF:</label> <input type="text" id="uf" maxlength="2" required><br>
+        <label>Número:</label> <input type="text" id="numero" required><br>
+        
+        <button type="submit">Cadastrar Professor</button>
+    </form>
+
+    <script>
+        // Automação ViaCEP com sanitização de caracteres (RN08)
+        const campoCep = document.getElementById('cep');
+        campoCep.addEventListener('blur', async () => {
+            const cepLimpo = campoCep.value.replace(/\D/g, '');
+            
+            if (cepLimpo.length === 8) {
+                const resposta = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+                const dados = await resposta.json();
+                
+                if (!dados.erro) {
+                    document.getElementById('logradouro').value = dados.logradouro;
+                    document.getElementById('bairro').value = dados.bairro;
+                    document.getElementById('cidade').value = dados.localidade;
+                    document.getElementById('uf').value = dados.uf;
+                    
+                    document.getElementById('logradouro').readOnly = true;
+                    document.getElementById('bairro').readOnly = true;
+                    document.getElementById('cidade').readOnly = true;
+                    document.getElementById('uf').readOnly = true;
+                    
+                    document.getElementById('numero').focus();
+                } else {
+                    alert("CEP não encontrado!");
+                }
+            }
+        });
+
+        // Envio do formulário via API REST
+        document.getElementById('formCadastro').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const pacote = {
+                nome: document.getElementById('nome').value,
+                email: document.getElementById('email').value,
+                senha: document.getElementById('senha').value,
+                disciplina: document.getElementById('disciplina').value,
+                cep: document.getElementById('cep').value.replace(/\D/g, ''),
+                logradouro: document.getElementById('logradouro').value,
+                bairro: document.getElementById('bairro').value,
+                cidade: document.getElementById('cidade').value,
+                uf: document.getElementById('uf').value,
+                numero: document.getElementById('numero').value
+            };
+
+            const resposta = await fetch('/api/professores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pacote)
+            });
+
+            if (resposta.status === 201) {
+                alert("Professor cadastrado com sucesso!");
+            } else {
+                alert("Erro ao cadastrar. Verifique se o e-mail já existe.");
+            }
+        });
+    </script>
+</body>
+</html>
