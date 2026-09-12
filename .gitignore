@@ -1,2 +1,19 @@
-/venv
-/env
+# Variáveis de ambiente e senhas (CRÍTICO)
+.env
+.env.*
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+ENV/
+
+# Arquivos temporários e cache do Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Configurações de editores de código
+.vscode/
+.idea/
