@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <!-- Configurações básicas de codificação para aceitar acentos e ç -->
+    <meta charset="UTF-8">
+    <!-- Ajusta a tela para ficar responsiva em celulares e tablets -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Título da aba do navegador -->
+    <title>{% block title %}Mr. Dave Idiomas{% endblock %}</title>
+
+    <!-- Importação do CSS do Bootstrap via CDN (para dar estilo visual) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="d-flex flex-column min-vh-100 bg-light">
+
+    <!-- ==================== BARRA DE NAVEGAÇÃO / MENU SUPERIOR ==================== -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+        <div class="container">
+            <!-- Logo/Nome da Aplicação -->
+            <a class="navbar-brand fw-bold" href="/">Mr. Dave Idiomas</a>
+            
+            <!-- Botão para abrir o menu em telas pequenas (celular) -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <!-- Links de navegação -->
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <!-- Links visíveis -->
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">Agenda</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">Materiais</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link btn btn-outline-light ms-2 px-3 text-white" href="#">Cadastre-se</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ==================== MENSAGENS DO FLASK (FLASH MESSAGES) ==================== -->
+    <!-- Aqui aparecem avisos do sistema, como "Login realizado", "Erro ao salvar", etc. -->
+    <div class="container mt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="type" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- ==================== CONTEÚDO PRINCIPAL (RESERVADO) ==================== -->
+    <!-- Este bloco 'content' será substituído pelo conteúdo das outras páginas (ex: login.html, agenda.html) -->
+    <main class="container my-4 flex-grow-1">
+        {% block content %}
+        <!-- O conteúdo específico de cada página vai entrar aqui! -->
+        {% endblock %}
+    </main>
+
+    <!-- ==================== RODAPÉ DA APLICAÇÃO ==================== -->
+    <footer class="bg-dark text-white text-center py-3 mt-auto">
+        <div class="container">
+            <small>&copy; 2026 Mr. Dave Idiomas - Todos os direitos reservados.</small>
+        </div>
+    </footer>
+
+    <!-- Importação do JavaScript do Bootstrap (necessário para menus sanfona, alertas fecháveis, etc.) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

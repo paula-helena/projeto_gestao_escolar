@@ -12,12 +12,12 @@ DATABASE_URL = "postgresql://postgres:admin123@localhost:5432/gestao_escolar"
 
 
 # ==================================================
-# 2. Rota para o endereço principal (http://127.0.0.1:5000/home-professor)
+# 2. Rota para o endereço principal (http://127.0.0.1:5000/)
 # ==================================================
 
 @app.route('/')
 def home():
-    return "<h1>Sistema de Gestão Escolar</h1><p>Acesse <a href='/cadastro'>/cadastro</a> para Alunos ou <a href='/cadastro-professor'>/cadastro-professor</a> para Professores.</p>"
+    return render_template('base.html')
 
 
 # ==================================================
