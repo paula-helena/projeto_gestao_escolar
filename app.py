@@ -12,7 +12,7 @@ DATABASE_URL = "postgresql://postgres:admin123@localhost:5432/gestao_escolar"
 
 
 # ==================================================
-# 2. Rota para o endereço principal (http://127.0.0.1:5000/)
+# 2. Rota para o endereço principal (http://127.0.0.1:5000/home-professor)
 # ==================================================
 
 @app.route('/')
@@ -21,7 +21,33 @@ def home():
 
 
 # ==================================================
-# 3. SEÇÃO DE ALUNOS
+# 3. SEÇÃO DE HOME PROFESSORES
+# ==================================================
+
+@app.route('/home-professor')
+def home_professor():
+    # Exemplo: Verificar se o usuário está logado e se é um professor
+    # if 'usuario_id' not in session or session.get('tipo_usuario') != 'professor':
+    #     return redirect(url_for('login'))
+    
+    # Dados de exemplo do professor logado
+    professor = {
+        'nome': 'João Silva',
+        'materia': 'Matemática'
+    }
+    
+    return render_template('home_professor.html', professor=professor)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+
+
+
+
+# ==================================================
+# 3. SEÇÃO DE CADASTRO DE ALUNOS
 # ==================================================
 
 # Rota Visual (Vitrine)
@@ -64,7 +90,7 @@ def cadastrar_aluno():
 
 
 # ==================================================
-# 4. SEÇÃO DE PROFESSORES
+# 4. SEÇÃO DE CADASTRO DE PROFESSORES
 # ==================================================
 
 # Rota Visual (Vitrine)
