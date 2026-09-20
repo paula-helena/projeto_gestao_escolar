@@ -1,18 +1,53 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session, flash
 import psycopg2
 from flask_bcrypt import Bcrypt
+from functools import wraps
 
 # ==================================================
 # 1. CONFIGURAÇÕES INICIAIS E SEGURANÇA
 # ==================================================
 app = Flask(__name__)
+app.secret_key = 'chave_secreta_para_desenvolvimento'  # Necessário para gerenciar session e mensagens flash
 bcrypt = Bcrypt(app)
 
 DATABASE_URL = "postgresql://postgres:admin123@localhost:5432/gestao_escolar"
 
 
 # ==================================================
-# 2. Rota para o endereço principal (http://127.0.0.1:5000/)
+# DECORATOR DE CONTROLE DE ACESSO (BLOQUEIO)
+# ==================================================
+def login_required(perfil_permitido=None):
+    """
+    Decorator para proteger rotas.
+    - Se perfil_permitido for None: exige apenas que o usuário esteja logado.
+    - Se perfil_permitido for especificado (ex: 'PROFESSOR'): valida se o perfil bate.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # 1. Verifica se o usuário está logado
+            if 'user_id' not in session:
+                flash('Você precisa estar logado para acessar esta página.', 'warning')
+                return redirect(url_for('login'))
+
+            # 2. Verifica permissão de perfil (se houver restrição)
+            if perfil_permitido and session.get('perfil') != perfil_permitido:
+                flash('Acesso negado: Você não tem permissão para acessar esta área.', 'danger')
+                return redirect(url_for('home'))
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+
+# Disponibiliza os dados de sessão em todos os templates HTML automaticamente
+@app.context_processor
+def inject_user():
+    return dict(usuario_logado=session)
+
+
+# ==================================================
+# 2. ROTA PRINCIPAL (PÚBLICA)
 # ==================================================
 
 @app.route('/')
@@ -21,36 +56,81 @@ def home():
 
 
 # ==================================================
-# 3. SEÇÃO DE HOME PROFESSORES
+# 3. SEÇÃO DE AUTENTICAÇÃO (LOGIN E LOGOUT)
+# ==================================================
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        senha = request.form.get('senha')
+
+        conexao = psycopg2.connect(DATABASE_URL)
+        cursor = conexao.cursor()
+
+        try:
+            # 1. Procura na tabela Aluno
+            cursor.execute("SELECT id_aluno, nome, email, senha FROM Aluno WHERE email = %s", (email,))
+            usuario = cursor.fetchone()
+            perfil = 'ALUNO'
+
+            # 2. Se não encontrar em Aluno, procura em Professor
+            if not usuario:
+                cursor.execute("SELECT id_professor, nome, email, senha FROM Professor WHERE email = %s", (email,))
+                usuario = cursor.fetchone()
+                perfil = 'PROFESSOR'
+
+            # 3. Valida se o usuário existe e se a senha criptografada bate
+            if usuario and bcrypt.check_password_hash(usuario[3], senha):
+                session['user_id'] = usuario[0]
+                session['nome'] = usuario[1]
+                session['email'] = usuario[2]
+                session['perfil'] = perfil
+
+                flash(f'Bem-vindo(a), {usuario[1]}!', 'success')
+
+                # Redireciona conforme o perfil do usuário
+                if perfil == 'PROFESSOR':
+                    return redirect(url_for('home_professor'))
+                return redirect(url_for('home'))
+            else:
+                flash('E-mail ou senha incorretos. Tente novamente.', 'danger')
+                return redirect(url_for('login'))
+
+        finally:
+            cursor.close()
+            conexao.close()
+
+    # Requisição GET renderiza a página de login
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Você saiu do sistema com sucesso.', 'info')
+    return redirect(url_for('login'))
+
+
+# ==================================================
+# 4. SEÇÃO DE HOME PROFESSORES (PROTEGIDA)
 # ==================================================
 
 @app.route('/home-professor')
+@login_required('PROFESSOR')  # Apenas PROFESSOR pode acessar
 def home_professor():
-    # Exemplo: Verificar se o usuário está logado e se é um professor
-    # if 'usuario_id' not in session or session.get('tipo_usuario') != 'professor':
-    #     return redirect(url_for('login'))
-    
-    # Dados de exemplo do professor logado
     professor = {
-        'nome': 'João Silva',
+        'nome': session.get('nome'),
         'materia': 'Matemática'
     }
-    
     return render_template('home_professor.html', professor=professor)
 
-if __name__ == '__main__':
-    app.run(debug=True)
-
-
-
-
-
 
 # ==================================================
-# 3. SEÇÃO DE CADASTRO DE ALUNOS
+# 5. SEÇÃO DE CADASTRO DE ALUNOS (PÚBLICA OU AUTO-CADASTRO)
 # ==================================================
 
-# Rota Visual (Vitrine)
+# Rota Visual
 @app.route('/cadastro')
 def pagina_cadastro():
     return render_template('cadastro_aluno.html')
@@ -90,20 +170,21 @@ def cadastrar_aluno():
 
 
 # ==================================================
-# 4. SEÇÃO DE CADASTRO DE PROFESSORES
+# 6. SEÇÃO DE CADASTRO DE PROFESSORES (PROTEGIDA - APENAS PROFESSORES CADASTRAREM OUTROS)
 # ==================================================
 
-# Rota Visual (Vitrine)
+# Rota Visual (Somente Professor)
 @app.route('/cadastro-professor')
+@login_required('PROFESSOR')
 def pagina_cadastro_professor():
     return render_template('cadastro_professor.html')
 
-# Rota de API (Cadastro do Professor)
+# Rota de API (Somente Professor)
 @app.route('/api/professores', methods=['POST'])
+@login_required('PROFESSOR')
 def cadastrar_professor():
     dados = request.json
     
-    # Embaralha a senha antes de salvar
     senha_hash = bcrypt.generate_password_hash(dados['senha']).decode('utf-8')
     
     conexao = psycopg2.connect(DATABASE_URL)
@@ -133,7 +214,7 @@ def cadastrar_professor():
 
 
 # ==================================================
-# 5. INICIALIZAÇÃO DO SERVIDO
+# 7. INICIALIZAÇÃO DO SERVIDOR
 # ==================================================
 if __name__ == '__main__':
     app.run(debug=True)

@@ -1,41 +1,93 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <title>Cadastro - Professor</title>
-    <style>
-        input[readonly] { background-color: #e9ecef; cursor: not-allowed; }
-    </style>
-</head>
-<body>
-    <h2>Cadastro de Novo Professor</h2>
-    
-    <form id="formCadastro">
-        <label>Nome:</label> <input type="text" id="nome" required><br>
-        <label>E-mail:</label> <input type="email" id="email" required><br>
-        <label>Senha:</label> <input type="password" id="senha" required><br>
-        <label>Disciplina:</label> <input type="text" id="disciplina" required><br>
-        
-        <hr>
-        <label>CEP:</label> 
-        <input type="text" id="cep" maxlength="9" required><br>
-        
-        <label>Logradouro:</label> <input type="text" id="logradouro" required><br>
-        <label>Bairro:</label> <input type="text" id="bairro" required><br>
-        <label>Cidade:</label> <input type="text" id="cidade" required><br>
-        <label>UF:</label> <input type="text" id="uf" maxlength="2" required><br>
-        <label>Número:</label> <input type="text" id="numero" required><br>
-        
-        <button type="submit">Cadastrar Professor</button>
-    </form>
+{% extends "base.html" %}
 
-    <script>
-        // Automação ViaCEP com sanitização de caracteres (RN08)
-        const campoCep = document.getElementById('cep');
-        campoCep.addEventListener('blur', async () => {
-            const cepLimpo = campoCep.value.replace(/\D/g, '');
-            
-            if (cepLimpo.length === 8) {
+{% block title %}Cadastrar Professor - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h3 class="card-title text-center mb-4 text-primary fw-bold">Cadastro de Professor</h3>
+                
+                <form id="formCadastro">
+                    <!-- Dados Profissionais e Pessoais -->
+                    <div class="mb-3">
+                        <label for="nome" class="form-label">Nome Completo</label>
+                        <input type="text" class="form-control" id="nome" required placeholder="Digite o nome do professor">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="email" class="form-label">E-mail</label>
+                        <input type="email" class="form-control" id="email" required placeholder="email@exemplo.com">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="senha" class="form-label">Senha Acesso Inicial</label>
+                        <input type="password" class="form-control" id="senha" required placeholder="Crie uma senha inicial">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="disciplina" class="form-label">Disciplina / Especialidade</label>
+                        <input type="text" class="form-control" id="disciplina" required placeholder="Ex: Inglês Avançado, Espanhol, Gramática">
+                    </div>
+
+                    <hr class="my-4">
+                    <h5 class="text-secondary mb-3">Endereço Residencial</h5>
+
+                    <!-- CEP com Automação ViaCEP -->
+                    <div class="mb-3">
+                        <label for="cep" class="form-label">CEP (Apenas números)</label>
+                        <input type="text" class="form-control" id="cep" maxlength="8" required placeholder="12345678">
+                        <div class="form-text">Digite os 8 dígitos para buscar o endereço automaticamente.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="logradouro" class="form-label">Logradouro / Rua</label>
+                        <input type="text" class="form-control" id="logradouro" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="bairro" class="form-label">Bairro</label>
+                            <input type="text" class="form-control" id="bairro" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="cidade" class="form-label">Cidade</label>
+                            <input type="text" class="form-control" id="cidade" required>
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label for="uf" class="form-label">UF</label>
+                            <input type="text" class="form-control" id="uf" maxlength="2" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="numero" class="form-label">Número</label>
+                        <input type="text" class="form-control" id="numero" required placeholder="Ex: 45">
+                    </div>
+
+                    <!-- Botão de Envio -->
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">Cadastrar Professor</button>
+                    </div>
+                </form>
+            </div>
+            <div class="card-footer text-center bg-white border-0 py-3">
+                <small class="text-muted"><a href="/home-professor" class="text-secondary text-decoration-none">← Voltar ao Painel do Professor</a></small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Automação ViaCEP com Sanitização (RN08)
+    const campoCep = document.getElementById('cep');
+    
+    campoCep.addEventListener('blur', async () => {
+        const cepLimpo = campoCep.value.replace(/\D/g, '');
+        
+        if (cepLimpo.length === 8) {
+            try {
                 const resposta = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
                 const dados = await resposta.json();
                 
@@ -45,6 +97,7 @@
                     document.getElementById('cidade').value = dados.localidade;
                     document.getElementById('uf').value = dados.uf;
                     
+                    // Bloqueia a edição manual
                     document.getElementById('logradouro').readOnly = true;
                     document.getElementById('bairro').readOnly = true;
                     document.getElementById('cidade').readOnly = true;
@@ -54,38 +107,47 @@
                 } else {
                     alert("CEP não encontrado!");
                 }
+            } catch (erro) {
+                alert("Erro ao consultar o CEP. Verifique sua conexão.");
             }
+        }
+    });
+
+    // 2. Envio do formulário via API REST (/api/professores)
+    document.getElementById('formCadastro').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const pacote = {
+            nome: document.getElementById('nome').value,
+            email: document.getElementById('email').value,
+            senha: document.getElementById('senha').value,
+            disciplina: document.getElementById('disciplina').value,
+            cep: document.getElementById('cep').value.replace(/\D/g, ''),
+            logradouro: document.getElementById('logradouro').value,
+            bairro: document.getElementById('bairro').value,
+            cidade: document.getElementById('cidade').value,
+            uf: document.getElementById('uf').value,
+            numero: document.getElementById('numero').value
+        };
+
+        const resposta = await fetch('/api/professores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(pacote)
         });
 
-        // Envio do formulário via API REST
-        document.getElementById('formCadastro').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const pacote = {
-                nome: document.getElementById('nome').value,
-                email: document.getElementById('email').value,
-                senha: document.getElementById('senha').value,
-                disciplina: document.getElementById('disciplina').value,
-                cep: document.getElementById('cep').value.replace(/\D/g, ''),
-                logradouro: document.getElementById('logradouro').value,
-                bairro: document.getElementById('bairro').value,
-                cidade: document.getElementById('cidade').value,
-                uf: document.getElementById('uf').value,
-                numero: document.getElementById('numero').value
-            };
+        const resultado = await resposta.json();
 
-            const resposta = await fetch('/api/professores', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(pacote)
+        if (resposta.status === 201) {
+            alert("Professor cadastrado com sucesso!");
+            document.getElementById('formCadastro').reset();
+            // Desbloqueia os campos de endereço caso queira cadastrar outro em seguida
+            ['logradouro', 'bairro', 'cidade', 'uf'].forEach(id => {
+                document.getElementById(id).readOnly = false;
             });
-
-            if (resposta.status === 201) {
-                alert("Professor cadastrado com sucesso!");
-            } else {
-                alert("Erro ao cadastrar. Verifique se o e-mail já existe.");
-            }
-        });
-    </script>
-</body>
-</html>
+        } else {
+            alert(resultado.erro || "Erro ao cadastrar. Verifique se o e-mail já existe.");
+        }
+    });
+</script>
+{% endblock %}
