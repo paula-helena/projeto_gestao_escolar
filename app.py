@@ -213,6 +213,114 @@ def cadastrar_professor():
         conexao.close()
 
 
+
+
+# ==================================================
+# 10. SEÇÃO DE AGENDA INTERATIVA (PASSOS 13 E 14)
+# ==================================================
+import calendar
+from datetime import datetime
+from api_feriados import obter_feriados
+
+@app.route('/agenda')
+def agenda_interativa():
+    hoje = datetime.now()
+    try:
+        mes = int(request.args.get('mes', hoje.month))
+        ano = int(request.args.get('ano', hoje.year))
+    except ValueError:
+        mes = hoje.month
+        ano = hoje.year
+
+    visao = request.args.get('visao', 'lista') # 'lista' ou 'calendario'
+
+    # 1. Busca aulas do banco
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    aulas = []
+    try:
+        cursor.execute("""
+            SELECT a.data_aula, a.horario_inicio, t.titulo, a.link_aula, p.nome 
+            FROM Aula a
+            JOIN Tema t ON a.id_tema = t.id_tema
+            JOIN Professor p ON a.id_professor = p.id_professor
+            ORDER BY a.data_aula ASC
+        """)
+        for row in cursor.fetchall():
+            data_original = str(row[0]) # YYYY-MM-DD
+            partes = data_original.split('-')
+            data_formatada = f"{partes[2]}-{partes[1]}-{partes[0]}" if len(partes) == 3 else data_original
+            
+            aulas.append({
+                'data_iso': data_original,
+                'data': data_formatada,
+                'horario': str(row[1])[:5],
+                'titulo': row[2],
+                'link': row[3],
+                'professor': row[4],
+                'tipo': 'Aula Agendada'
+            })
+    except Exception as e:
+        print(f"Erro ao buscar aulas: {e}")
+    finally:
+        cursor.close()
+        conexao.close()
+
+    # 2. Busca feriados da API
+    feriados_br = obter_feriados()
+    feriados = []
+    for f in feriados_br:
+        data_original = f['data'] # YYYY-MM-DD
+        partes = data_original.split('-')
+        data_formatada = f"{partes[2]}-{partes[1]}-{partes[0]}" if len(partes) == 3 else data_original
+        feriados.append({
+            'data_iso': data_original,
+            'data': data_formatada,
+            'horario': 'Dia Todo',
+            'titulo': f['nome'],
+            'link': None,
+            'professor': '-',
+            'tipo': 'Feriado Nacional'
+        })
+
+    eventos_totais = aulas + feriados
+    eventos_totais.sort(key=lambda x: x['data_iso'])
+
+    # Mapear eventos por data ISO (ex: '2026-09-30': [evento1, evento2])
+    eventos_por_data = {}
+    for ev in eventos_totais:
+        d = ev['data_iso']
+        if d not in eventos_por_data:
+            eventos_por_data[d] = []
+        eventos_por_data[d].append(ev)
+
+    # Navegação de meses
+    mes_anterior = mes - 1 if mes > 1 else 12
+    ano_anterior = ano if mes > 1 else ano - 1
+    mes_proximo = mes + 1 if mes < 12 else 1
+    ano_proximo = ano if mes < 12 else ano + 1
+
+    meses_pt = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+    nome_mes_atual = meses_pt[mes]
+
+    # Gerar a matriz do calendário do mês (iniciando em Segunda-feira ou Domingo. Usaremos calendar.Calendar(firstweekday=6) para Domingo)
+    cal = calendar.Calendar(firstweekday=6) # 6 = Domingo como primeiro dia da semana
+    matriz_calendario = cal.monthdayscalendar(ano, mes)
+
+    return render_template('agenda.html', 
+                           eventos=eventos_totais,
+                           eventos_por_data=eventos_por_data,
+                           matriz_calendario=matriz_calendario,
+                           visao=visao,
+                           mes_atual=mes,
+                           ano_atual=ano,
+                           nome_mes=nome_mes_atual,
+                           mes_anterior=mes_anterior,
+                           ano_anterior=ano_anterior,
+                           mes_proximo=mes_proximo,
+                           ano_proximo=ano_proximo)
+
 # ==================================================
 # 7. INICIALIZAÇÃO DO SERVIDOR
 # ==================================================
