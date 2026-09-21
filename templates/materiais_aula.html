@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Materiais da Aula - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <!-- Cabeçalho Informativo da Aula -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-body bg-light rounded">
+                <h4 class="text-primary fw-bold mb-1">Gerenciar Materiais da Aula</h4>
+                {% if aula %}
+                    <p class="mb-0 text-muted">Tema: <strong>{{ aula[1] }}</strong> | Data: <strong>{{ aula[0] }}</strong></p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Formulário de Cadastro de Material -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Adicionar Novo Material ou Link</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data" action="/aula/{{ id_aula }}/materiais">
+                    
+                    <div class="mb-3">
+                        <label for="descricao" class="form-label fw-bold">Descrição do Material</label>
+                        <input type="text" class="form-control" id="descricao" name="descricao" placeholder="Ex: Slides da Aula 01, Apostila em PDF..." required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="tipo_material" class="form-label fw-bold">Tipo de Recurso</label>
+                        <select class="form-select" id="tipo_material" name="tipo_material" required onchange="mudarCampoTipo(this.value)">
+                            <option value="" disabled selected>Selecione o tipo...</option>
+                            <option value="PDF">Arquivo PDF</option>
+                            <option value="Vídeo">Arquivo de Vídeo</option>
+                            <option value="Link">Link Externo</option>
+                        </select>
+                    </div>
+
+                    <!-- Campo dinâmico para Arquivo Físico -->
+                    <div class="mb-3" id="bloco-arquivo">
+                        <label for="arquivo" class="form-label fw-bold">Selecionar Arquivo</label>
+                        <input type="file" class="form-control" id="arquivo" name="arquivo">
+                    </div>
+
+                    <!-- Campo dinâmico para Link Externo -->
+                    <div class="mb-3 d-none" id="bloco-link">
+                        <label for="url_link" class="form-label fw-bold">URL do Link</label>
+                        <input type="url" class="form-control" id="url_link" name="url_link" placeholder="https://exemplo.com/material">
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 fw-bold">Salvar e Enviar Material</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Listagem de Materiais Anexados -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">Materiais Disponíveis para esta Aula</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Descrição</th>
+                                <th>Tipo</th>
+                                <th class="text-end">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if materiais %}
+                                {% for mat in materiais %}
+                                <tr>
+                                    <td class="fw-semibold">{{ mat[3] }}</td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ mat[1] }}</span>
+                                    </td>
+                                    <td class="text-end">
+                                        {% if mat[1] == 'Link' %}
+                                            <a href="{{ mat[2] }}" target="_blank" class="btn btn-sm btn-outline-primary">Acessar Link</a>
+                                        {% else %}
+                                            <a href="{{ url_for('static', filename=mat[2]) }}" target="_blank" class="btn btn-sm btn-outline-success">Visualizar / Baixar</a>
+                                        {% endif %}
+
+                                        <!-- Botão de Excluir com Confirmação -->
+                                        <form action="{{ url_for('excluir_material', id_material=mat[0]) }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este material?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">Nenhum material anexado a esta aula ainda.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function mudarCampoTipo(valor) {
+        const blocoArquivo = document.getElementById('bloco-arquivo');
+        const blocoLink = document.getElementById('bloco-link');
+        if (valor === 'Link') {
+            blocoArquivo.classList.add('d-none');
+            blocoLink.classList.remove('d-none');
+        } else {
+            blocoLink.classList.add('d-none');
+            blocoArquivo.classList.remove('d-none');
+        }
+    }
+</script>
+{% endblock %}
