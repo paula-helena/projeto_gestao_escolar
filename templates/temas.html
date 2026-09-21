@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciamento de Temas - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Formulário de Cadastro de Temas -->
+    <div class="col-md-5 mb-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Cadastrar Novo Tema</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/temas">
+                    <div class="mb-3">
+                        <label for="titulo" class="form-label fw-bold">Título do Tema</label>
+                        <input type="text" class="form-control" id="titulo" name="titulo" required placeholder="Ex: Simple Present & Rotinas">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="descricao" class="form-label fw-bold">Descrição</label>
+                        <textarea class="form-control" id="descricao" name="descricao" rows="3" placeholder="Resumo breve do conteúdo abordado..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 fw-bold">Salvar Tema</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabela de Listagem de Temas Cadastrados -->
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">Temas Cadastrados</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>Título</th>
+                                <th>Descrição</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if temas %}
+                                {% for tema in temas %}
+                                <tr>
+                                    <td>{{ tema[0] }}</td>
+                                    <td class="fw-semibold">{{ tema[1] }}</td>
+                                    <td>{{ tema[2] if tema[2] else '-' }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">Nenhum tema cadastrado até o momento.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

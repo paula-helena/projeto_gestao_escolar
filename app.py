@@ -211,6 +211,47 @@ def cadastrar_professor():
     finally:
         cursor.close()
         conexao.close()
+        
+# ==================================================
+# 8. SEÇÃO DE TEMAS DE AULA (PASSO 10)
+# ==================================================
+
+@app.route('/temas', methods=['GET', 'POST'])
+@login_required('PROFESSOR')
+def gerenciar_temas():
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    if request.method == 'POST':
+        titulo = request.form.get('titulo')
+        descricao = request.form.get('descricao')
+        
+        try:
+            cursor.execute(
+                "INSERT INTO Tema (titulo, descricao) VALUES (%s, %s)",
+                (titulo, descricao)
+            )
+            conexao.commit()
+            flash('Tema cadastrado com sucesso!', 'success')
+        except Exception as e:
+            conexao.rollback()
+            flash(f'Erro ao cadastrar tema: {e}', 'danger')
+        finally:
+            cursor.close()
+            conexao.close()
+        return redirect(url_for('gerenciar_temas'))
+
+    # Método GET: Lista os temas cadastrados no banco
+    try:
+        cursor.execute("SELECT id_tema, titulo, descricao FROM Tema ORDER BY id_tema DESC")
+        temas = cursor.fetchall()
+    except Exception:
+        temas = []
+    finally:
+        cursor.close()
+        conexao.close()
+
+    return render_template('temas.html', temas=temas)
 
 
 # ==================================================
