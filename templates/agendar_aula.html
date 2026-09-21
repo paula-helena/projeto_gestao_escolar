@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Agendar Aula - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">Agendar Nova Aula</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="/aulas/nova">
+                    
+                    <!-- Seleção do Tema -->
+                    <div class="mb-3">
+                        <label for="id_tema" class="form-label fw-bold">Tema da Aula</label>
+                        <select class="form-select" id="id_tema" name="id_tema" required>
+                            <option value="" disabled selected>Selecione um tema cadastrado...</option>
+                            {% for tema in temas %}
+                                <option value="{{ tema[0] }}">{{ tema[1] }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Caso o tema não apareça, certifique-se de cadastrá-lo previamente.</div>
+                    </div>
+
+                    <!-- Data da Aula -->
+                    <div class="mb-3">
+                        <label for="data_aula" class="form-label fw-bold">Data da Aula</label>
+                        <input type="date" class="form-control" id="data_aula" name="data_aula" required>
+                    </div>
+
+                    <!-- Horário de Início -->
+                    <div class="mb-3">
+                        <label for="horario_inicio" class="form-label fw-bold">Horário de Início</label>
+                        <input type="time" class="form-control" id="horario_inicio" name="horario_inicio" required>
+                    </div>
+
+                    <!-- Link da Aula -->
+                    <div class="mb-3">
+                        <label for="link_aula" class="form-label fw-bold">Link da Reunião (Opcional)</label>
+                        <input type="url" class="form-control" id="link_aula" name="link_aula" placeholder="https://meet.google.com/abc-defg-hij">
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100 fw-bold">Cadastrar e Agendar Aula</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

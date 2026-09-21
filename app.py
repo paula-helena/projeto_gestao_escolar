@@ -214,6 +214,55 @@ def cadastrar_professor():
 
 
 # ==================================================
+# 9. SEÇÃO DE AGENDAMENTO DE AULA (PASSO 11)
+# ==================================================
+
+@app.route('/aulas/nova', methods=['GET', 'POST'])
+@login_required('PROFESSOR')
+def agendar_aula():
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    if request.method == 'POST':
+        id_tema = request.form.get('id_tema')
+        data_aula = request.form.get('data_aula')
+        horario_inicio = request.form.get('horario_inicio')
+        link_aula = request.form.get('link_aula')
+        
+        # Pega o id do professor logado através da sessão atual
+        id_professor = session.get('user_id')
+
+        try:
+            cursor.execute(
+                """
+                INSERT INTO Aula (id_professor, id_tema, data_aula, horario_inicio, link_aula) 
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (id_professor, id_tema, data_aula, horario_inicio, link_aula)
+            )
+            conexao.commit()
+            flash('Aula agendada com sucesso!', 'success')
+            return redirect(url_for('agendar_aula'))
+        except Exception as e:
+            conexao.rollback()
+            flash(f'Erro ao agendar aula: {e}', 'danger')
+        finally:
+            cursor.close()
+            conexao.close()
+
+    # Método GET: Busca os temas cadastrados para popular o <select> no formulário
+    try:
+        cursor.execute("SELECT id_tema, titulo FROM Tema ORDER BY titulo ASC")
+        temas = cursor.fetchall()
+    except Exception:
+        temas = []
+    finally:
+        cursor.close()
+        conexao.close()
+
+    return render_template('agendar_aula.html', temas=temas)
+
+# ==================================================
 # 7. INICIALIZAÇÃO DO SERVIDOR
 # ==================================================
 if __name__ == '__main__':
