@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify, render_template, redirect, url_for, s
 import psycopg2
 from flask_bcrypt import Bcrypt
 from functools import wraps
+import os
+from werkzeug.utils import secure_filename
 
 # ==================================================
 # 1. CONFIGURAÇÕES INICIAIS E SEGURANÇA
@@ -212,6 +214,129 @@ def cadastrar_professor():
         cursor.close()
         conexao.close()
 
+
+# ==================================================
+# 11. SEÇÃO DE MATERIAIS DE AULA (PASSOS 15 E 16)
+# ==================================================
+
+UPLOAD_FOLDER_PDF = 'static/uploads/pdf'
+UPLOAD_FOLDER_VIDEO = 'static/uploads/video'
+
+
+@app.route('/aula/<int:id_aula>/materiais', methods=['GET', 'POST'])
+@login_required('PROFESSOR')
+def gerenciar_materiais(id_aula):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    if request.method == 'POST':
+        descricao = request.form.get('descricao')
+        tipo_material = request.form.get('tipo_material') # 'PDF', 'Vídeo', 'Link'
+        url_arquivo = ''
+
+        try:
+            if tipo_material == 'Link':
+                url_arquivo = request.form.get('url_link')
+            else:
+                # Tratamento de upload de arquivo físico
+                arquivo = request.files.get('arquivo')
+                if arquivo and arquivo.filename != '':
+                    nome_seguro = secure_filename(arquivo.filename)
+                    
+                    if tipo_material == 'PDF':
+                        os.makedirs(UPLOAD_FOLDER_PDF, exist_ok=True)
+                        caminho_completo = os.path.join(UPLOAD_FOLDER_PDF, nome_seguro)
+                        arquivo.save(caminho_completo)
+                        url_arquivo = f"uploads/pdf/{nome_seguro}"
+                    elif tipo_material == 'Vídeo':
+                        os.makedirs(UPLOAD_FOLDER_VIDEO, exist_ok=True)
+                        caminho_completo = os.path.join(UPLOAD_FOLDER_VIDEO, nome_seguro)
+                        arquivo.save(caminho_completo)
+                        url_arquivo = f"uploads/video/{nome_seguro}"
+
+            cursor.execute(
+                """
+                INSERT INTO material_apoio (id_aula, tipo_material, url_arquivo, descricao) 
+                VALUES (%s, %s, %s, %s)
+                """,
+                (id_aula, tipo_material, url_arquivo, descricao)
+            )
+            conexao.commit()
+            flash('Material cadastrado com sucesso!', 'success')
+            return redirect(url_for('gerenciar_materiais', id_aula=id_aula))
+        except Exception as e:
+            conexao.rollback()
+            flash(f'Erro ao salvar material: {e}', 'danger')
+
+    # GET: Busca dados da aula e a lista de materiais cadastrados na tabela correta
+    try:
+        cursor.execute("""
+            SELECT a.data_aula, t.titulo 
+            FROM Aula a 
+            JOIN Tema t ON a.id_tema = t.id_tema 
+            WHERE a.id_aula = %s
+        """, (id_aula,))
+        aula = cursor.fetchone()
+
+        cursor.execute("""
+            SELECT id_material, tipo_material, url_arquivo, descricao 
+            FROM material_apoio 
+            WHERE id_aula = %s 
+            ORDER BY id_material DESC
+        """, (id_aula,))
+        materiais = cursor.fetchall()
+    except Exception as e:
+        print(f"Erro ao buscar materiais: {e}")
+        aula = None
+        materiais = []
+    finally:
+        cursor.close()
+        conexao.close()
+
+    return render_template('materiais_aula.html', aula=aula, id_aula=id_aula, materiais=materiais)
+
+# =================================================
+# ROTA DE EXCLUSÃO DE MATERIAL (PASSO 17)
+# ==================================================
+
+@app.route('/material/<int:id_material>/excluir', methods=['POST'])
+@login_required('PROFESSOR')
+def excluir_material(id_material):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    
+    id_aula = None
+    try:
+        # Busca o material para identificar o arquivo e a aula vinculada
+        cursor.execute("SELECT id_aula, tipo_material, url_arquivo FROM material_apoio WHERE id_material = %s", (id_material,))
+        material = cursor.fetchone()
+        
+        if material:
+            id_aula = material[0]
+            tipo_material = material[1]
+            url_arquivo = material[2]
+            
+            # Se for um arquivo físico (PDF ou Vídeo), remove da pasta static
+            if tipo_material != 'Link' and url_arquivo:
+                caminho_fisico = os.path.join('static', url_arquivo)
+                if os.path.exists(caminho_fisico):
+                    os.remove(caminho_fisico)
+            
+            # Deleta o registro da tabela material_apoio
+            cursor.execute("DELETE FROM material_apoio WHERE id_material = %s", (id_material,))
+            conexao.commit()
+            flash('Material excluído com sucesso!', 'success')
+    except Exception as e:
+        conexao.rollback()
+        flash(f'Erro ao excluir material: {e}', 'danger')
+    finally:
+        cursor.close()
+        conexao.close()
+        
+    # Redireciona de volta para a página de materiais daquela aula específica
+    if id_aula:
+        return redirect(url_for('gerenciar_materiais', id_aula=id_aula))
+    return redirect(url_for('agenda_interativa'))
 
 # ==================================================
 # 7. INICIALIZAÇÃO DO SERVIDOR
