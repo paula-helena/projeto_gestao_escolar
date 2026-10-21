@@ -1,4 +1,4 @@
--- 1. Criação das tabelas independentes (Sem chaves estrangeiras)
+-- 1. Criação das tabelas independentes
 
 CREATE TABLE Aluno (
     id_aluno SERIAL PRIMARY KEY,
@@ -18,7 +18,15 @@ CREATE TABLE Professor (
     id_professor SERIAL PRIMARY KEY,
     nome VARCHAR(100) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    senha VARCHAR(255) NOT NULL
+    senha VARCHAR(255) NOT NULL,
+    disciplina VARCHAR(100) NOT NULL,
+    cep VARCHAR(9) NOT NULL,
+    logradouro VARCHAR(150) NOT NULL,
+    bairro VARCHAR(100) NOT NULL,
+    cidade VARCHAR(100) NOT NULL,
+    uf CHAR(2) NOT NULL,
+    numero VARCHAR(20),
+    complemento VARCHAR(100)
 );
 
 CREATE TABLE Tema (
@@ -36,29 +44,28 @@ CREATE TABLE Evento_Institucional (
 );
 
 
--- 2. Criação das tabelas dependentes (Com chaves estrangeiras)
+-- 2. Criação das tabelas dependentes
 
 CREATE TABLE Aula (
     id_aula SERIAL PRIMARY KEY,
     id_professor INT NOT NULL,
-    id_tema INT,
-    data_aula DATE NOT NULL,
-    horario_inicio TIME NOT NULL,
+    tema VARCHAR(150) NOT NULL,  -- Alterado para receber o texto direto do form
+    data_hora TIMESTAMP NOT NULL, -- Unificado para bater com o datetime-local do HTML
+    status VARCHAR(50) DEFAULT 'AGENDADA',
     link_aula VARCHAR(255),
-    FOREIGN KEY (id_professor) REFERENCES Professor(id_professor),
-    FOREIGN KEY (id_tema) REFERENCES Tema(id_tema)
+    FOREIGN KEY (id_professor) REFERENCES Professor(id_professor)
 );
 
-CREATE TABLE Material_Apoio (
+CREATE TABLE Material_Didatico (  -- Renomeado para bater com o backend
     id_material SERIAL PRIMARY KEY,
-    id_aula INT NOT NULL,
-    tipo_material VARCHAR(50), 
-    url_arquivo VARCHAR(255) NOT NULL,
-    descricao VARCHAR(150),
-    FOREIGN KEY (id_aula) REFERENCES Aula(id_aula) ON DELETE CASCADE
+    id_professor INT NOT NULL,    -- Vinculado ao professor que cadastrou
+    titulo VARCHAR(150) NOT NULL,
+    descricao TEXT,
+    link_arquivo VARCHAR(255) NOT NULL,
+    FOREIGN KEY (id_professor) REFERENCES Professor(id_professor) ON DELETE CASCADE
 );
 
-CREATE TABLE Controle_Academico (
+CREATE TABLE Aula_Aluno (         -- Renomeado de Controle_Academico para bater com a query
     id_aluno INT NOT NULL,
     id_aula INT NOT NULL,
     presenca BOOLEAN DEFAULT FALSE,

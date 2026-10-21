@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Adicionar Novo Material - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h3 class="card-title text-center mb-4 text-primary fw-bold">
+                    <i class="bi bi-cloud-arrow-up me-2"></i>Adicionar Material
+                </h3>
+                
+                <form action="/materiais/novo" method="POST">
+                    
+                    <!-- Campo: Título -->
+                    <div class="mb-3">
+                        <label for="titulo" class="form-label fw-semibold">Título do Material</label>
+                        <input type="text" class="form-control" id="titulo" name="titulo" required placeholder="Ex: Apostila de Phrasal Verbs">
+                    </div>
+
+                    <!-- Campo: Descrição -->
+                    <div class="mb-3">
+                        <label for="descricao" class="form-label fw-semibold">Descrição Breve</label>
+                        <textarea class="form-control" id="descricao" name="descricao" rows="3" required placeholder="Descreva o conteúdo deste material..."></textarea>
+                    </div>
+
+                    <!-- Campo: Link do Arquivo -->
+                    <div class="mb-4">
+                        <label for="link_arquivo" class="form-label fw-semibold">Link de Acesso (URL)</label>
+                        <input type="url" class="form-control" id="link_arquivo" name="link_arquivo" required placeholder="Ex: https://drive.google.com/...">
+                        <div class="form-text">Cole o link do Google Drive, Dropbox, YouTube ou qualquer outro repositório.</div>
+                    </div>
+
+                    <!-- Botões de Ação -->
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                            <i class="bi bi-check-circle me-1"></i> Salvar Material
+                        </button>
+                        <a href="/materiais" class="btn btn-outline-secondary">Cancelar e Voltar</a>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
