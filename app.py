@@ -167,6 +167,136 @@ def nova_aula():
         conexao = psycopg2.connect(DATABASE_URL)
         cursor = conexao.cursor()
         try:
+            # CORREÇÃO: Fechamento correto das aspas triplas e uso do %s
             cursor.execute("""
                 INSERT INTO Aula (id_professor, data_hora, tema, status) 
-                VALUES (%
+                VALUES (%s, %s, %s, 'AGENDADA')
+            """, (session.get('user_id'), data_hora, tema))
+            
+            conexao.commit()
+            flash('Aula agendada com sucesso!', 'success')
+            return redirect(url_for('listar_aulas'))
+        finally:
+            cursor.close()
+            conexao.close()
+            
+    return render_template('nova_aula.html')
+
+
+# ==================================================
+# 6. GESTÃO DE MATERIAIS DIDÁTICOS
+# ==================================================
+@app.route('/materiais', methods=['GET'])
+@login_required()
+def listar_materiais():
+    """Lista materiais didáticos disponíveis"""
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("SELECT id_material, titulo, descricao, link_arquivo FROM Material_Didatico")
+        materiais = cursor.fetchall()
+        return render_template('materiais.html', materiais=materiais)
+    finally:
+        cursor.close()
+        conexao.close()
+
+@app.route('/materiais/novo', methods=['GET', 'POST'])
+@login_required('PROFESSOR')
+def novo_material():
+    """Rota para o professor adicionar um novo material"""
+    if request.method == 'POST':
+        titulo = request.form.get('titulo')
+        descricao = request.form.get('descricao')
+        link_arquivo = request.form.get('link_arquivo')
+        
+        conexao = psycopg2.connect(DATABASE_URL)
+        cursor = conexao.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO Material_Didatico (id_professor, titulo, descricao, link_arquivo) 
+                VALUES (%s, %s, %s, %s)
+            """, (session.get('user_id'), titulo, descricao, link_arquivo))
+            conexao.commit()
+            flash('Material adicionado com sucesso!', 'success')
+            return redirect(url_for('listar_materiais'))
+        finally:
+            cursor.close()
+            conexao.close()
+            
+    return render_template('novo_material.html')
+
+
+# ==================================================
+# 7. SEÇÃO DE CADASTRO (ALUNOS E PROFESSORES)
+# ==================================================
+@app.route('/cadastro')
+def pagina_cadastro():
+    return render_template('cadastro_aluno.html')
+
+@app.route('/api/alunos', methods=['POST'])
+def cadastrar_aluno():
+    dados = request.json
+    senha_hash = bcrypt.generate_password_hash(dados['senha']).decode('utf-8')
+    
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO Aluno (nome, email, senha, cep, logradouro, bairro, cidade, uf, numero, complemento) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id_aluno, nome
+        """, (
+            dados['nome'], dados['email'], senha_hash, dados['cep'], 
+            dados['logradouro'], dados['bairro'], dados['cidade'], 
+            dados['uf'], dados['numero'], dados.get('complemento')
+        ))
+        novo_aluno = cursor.fetchone()
+        conexao.commit()
+        return jsonify({"mensagem": "Sucesso", "id": novo_aluno[0], "nome": novo_aluno[1]}), 201
+        
+    except psycopg2.IntegrityError:
+        conexao.rollback()
+        return jsonify({"erro": "E-mail já cadastrado no sistema."}), 400
+    finally:
+        cursor.close()
+        conexao.close()
+
+@app.route('/cadastro-professor')
+@login_required('PROFESSOR')
+def pagina_cadastro_professor():
+    return render_template('cadastro_professor.html')
+
+@app.route('/api/professores', methods=['POST'])
+@login_required('PROFESSOR')
+def cadastrar_professor():
+    dados = request.json
+    senha_hash = bcrypt.generate_password_hash(dados['senha']).decode('utf-8')
+    
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO Professor (nome, email, senha, disciplina, cep, logradouro, bairro, cidade, uf, numero, complemento) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id_professor, nome
+        """, (
+            dados['nome'], dados['email'], senha_hash, dados['disciplina'],
+            dados['cep'], dados['logradouro'], dados['bairro'], dados['cidade'], 
+            dados['uf'], dados['numero'], dados.get('complemento')
+        ))
+        novo_prof = cursor.fetchone()
+        conexao.commit()
+        return jsonify({"mensagem": "Sucesso", "id": novo_prof[0], "nome": novo_prof[1]}), 201
+        
+    except psycopg2.IntegrityError:
+        conexao.rollback()
+        return jsonify({"erro": "E-mail já cadastrado no sistema."}), 400
+    finally:
+        cursor.close()
+        conexao.close()
+
+# ==================================================
+# 8. INICIALIZAÇÃO DO SERVIDOR
+# ==================================================
+if __name__ == '__main__':
+    app.run(debug=True)
