@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}Agenda de Aulas - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+    <div class="col">
+        <h2 class="text-primary fw-bold mb-0">
+            <i class="bi bi-calendar-week me-2"></i> Agenda de Aulas
+        </h2>
+    </div>
+    
+    <!-- Botão visível APENAS para PROFESSOR -->
+    {% if session.get('perfil') == 'PROFESSOR' %}
+    <div class="col-auto">
+        <a href="/aulas/nova" class="btn btn-primary fw-bold shadow-sm">
+            <i class="bi bi-plus-lg me-1"></i> Agendar Nova Aula
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col" class="px-4 py-3">Data e Hora</th>
+                        <th scope="col" class="py-3">Tema da Aula</th>
+                        <th scope="col" class="py-3">Status</th>
+                        <th scope="col" class="px-4 py-3 text-end">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- O backend (app.py) envia a lista 'aulas' com as tuplas do banco de dados -->
+                    {% for aula in aulas %}
+                    <tr>
+                        <!-- aula[1] = data_hora, aula[2] = tema, aula[3] = status -->
+                        <td class="px-4 py-3 align-middle fw-semibold text-secondary">{{ aula[1] }}</td>
+                        <td class="py-3 align-middle">{{ aula[2] }}</td>
+                        <td class="py-3 align-middle">
+                            <!-- Estilização condicional do status -->
+                            {% if aula[3] == 'AGENDADA' %}
+                                <span class="badge bg-primary rounded-pill px-3 py-2">Agendada</span>
+                            {% elif aula[3] == 'REALIZADA' %}
+                                <span class="badge bg-success rounded-pill px-3 py-2">Realizada</span>
+                            {% elif aula[3] == 'CANCELADA' %}
+                                <span class="badge bg-danger rounded-pill px-3 py-2">Cancelada</span>
+                            {% else %}
+                                <span class="badge bg-secondary rounded-pill px-3 py-2">{{ aula[3] }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3 align-middle text-end">
+                            <button class="btn btn-sm btn-outline-info" title="Ver Detalhes">
+                                <i class="bi bi-eye"></i> Detalhes
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <!-- Caso não haja aulas cadastradas -->
+                    <tr>
+                        <td colspan="4" class="text-center py-5 text-muted">
+                            <i class="bi bi-calendar-x fs-1 d-block mb-3 text-light"></i>
+                            <h5 class="fw-bold">Nenhuma aula encontrada</h5>
+                            <p class="mb-0">Ainda não existem aulas agendadas para o seu perfil.</p>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

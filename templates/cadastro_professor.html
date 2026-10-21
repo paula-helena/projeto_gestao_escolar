@@ -61,9 +61,15 @@
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="numero" class="form-label">Número</label>
-                        <input type="text" class="form-control" id="numero" required placeholder="Ex: 45">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="numero" class="form-label">Número</label>
+                            <input type="text" class="form-control" id="numero" required placeholder="Ex: 45">
+                        </div>
+                        <div class="col-md-8 mb-3">
+                            <label for="complemento" class="form-label">Complemento <span class="text-muted">(Opcional)</span></label>
+                            <input type="text" class="form-control" id="complemento" placeholder="Apto, Sala, Bloco...">
+                        </div>
                     </div>
 
                     <!-- Botão de Envio -->
@@ -127,26 +133,32 @@
             bairro: document.getElementById('bairro').value,
             cidade: document.getElementById('cidade').value,
             uf: document.getElementById('uf').value,
-            numero: document.getElementById('numero').value
+            numero: document.getElementById('numero').value,
+            complemento: document.getElementById('complemento').value // Campo incluído aqui
         };
 
-        const resposta = await fetch('/api/professores', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(pacote)
-        });
-
-        const resultado = await resposta.json();
-
-        if (resposta.status === 201) {
-            alert("Professor cadastrado com sucesso!");
-            document.getElementById('formCadastro').reset();
-            // Desbloqueia os campos de endereço caso queira cadastrar outro em seguida
-            ['logradouro', 'bairro', 'cidade', 'uf'].forEach(id => {
-                document.getElementById(id).readOnly = false;
+        try {
+            const resposta = await fetch('/api/professores', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(pacote)
             });
-        } else {
-            alert(resultado.erro || "Erro ao cadastrar. Verifique se o e-mail já existe.");
+
+            const resultado = await resposta.json();
+
+            if (resposta.status === 201) {
+                alert("Professor cadastrado com sucesso!");
+                document.getElementById('formCadastro').reset();
+                
+                // Desbloqueia os campos de endereço caso queira cadastrar outro em seguida
+                ['logradouro', 'bairro', 'cidade', 'uf'].forEach(id => {
+                    document.getElementById(id).readOnly = false;
+                });
+            } else {
+                alert(resultado.erro || "Erro ao cadastrar. Verifique se o e-mail já existe.");
+            }
+        } catch (erro) {
+            alert("Erro de comunicação com o servidor.");
         }
     });
 </script>

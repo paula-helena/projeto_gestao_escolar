@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Agendar Nova Aula - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h3 class="card-title text-center mb-4 text-primary fw-bold">
+                    <i class="bi bi-calendar-plus me-2"></i>Agendar Nova Aula
+                </h3>
+                
+                <!-- O formulário envia os dados via POST para a rota do app.py -->
+                <form action="/aulas/nova" method="POST">
+                    
+                    <!-- Campo: Tema da Aula -->
+                    <div class="mb-3">
+                        <label for="tema" class="form-label fw-semibold">Tema da Aula</label>
+                        <input type="text" class="form-control" id="tema" name="tema" required placeholder="Ex: Present Perfect, Conversação, Revisão Geral">
+                    </div>
+
+                    <!-- Campo: Data e Hora -->
+                    <div class="mb-4">
+                        <label for="data_hora" class="form-label fw-semibold">Data e Horário</label>
+                        <input type="datetime-local" class="form-control" id="data_hora" name="data_hora" required>
+                    </div>
+
+                    <!-- Botões de Ação -->
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                            <i class="bi bi-check-circle me-1"></i> Agendar Aula
+                        </button>
+                        <a href="/aulas" class="btn btn-outline-secondary">Cancelar e Voltar</a>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
