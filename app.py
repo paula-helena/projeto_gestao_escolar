@@ -59,8 +59,9 @@ def home():
         if session.get('perfil') == 'PROFESSOR':
             return redirect(url_for('home_professor'))
         return redirect(url_for('home_aluno'))
-    return render_template('base.html')
-
+    
+    # ATUALIZAÇÃO AQUI: Aponta para o novo template
+    return render_template('index.html')
 
 # ==================================================
 # 3. SEÇÃO DE AUTENTICAÇÃO (LOGIN E LOGOUT)
