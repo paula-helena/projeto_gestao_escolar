@@ -70,4 +70,81 @@
 
                     <!-- Botão de Envio -->
                     <div class="d-grid mt-4">
-                        <button type="submit" class="btn btn-primary btn-lg">Finalizar
+<button type="submit" class="btn btn-primary btn-lg">Finalizar Cadastro</button>
+                    </div>
+                    
+                    <div class="text-center mt-3">
+                        <p class="mb-0">Já tem uma conta? <a href="/login" class="text-decoration-none fw-bold">Faça Login</a></p>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lógica JavaScript para ViaCEP e Submissão do Formulário -->
+<script>
+    // 1. Busca Automática de CEP (ViaCEP)
+    document.getElementById('cep').addEventListener('blur', function() {
+        let cep = this.value.replace(/\D/g, ''); // Remove tudo o que não for número
+        
+        if (cep.length === 8) {
+            fetch(`https://viacep.com.br/ws/${cep}/json/`)
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.erro) {
+                        document.getElementById('logradouro').value = data.logradouro;
+                        document.getElementById('bairro').value = data.bairro;
+                        document.getElementById('cidade').value = data.localidade;
+                        document.getElementById('uf').value = data.uf;
+                        
+                        // Move o cursor automaticamente para o campo número
+                        document.getElementById('numero').focus();
+                    } else {
+                        alert('CEP não encontrado. Verifique os números digitados.');
+                    }
+                })
+                .catch(error => console.error('Erro ao buscar CEP:', error));
+        }
+    });
+
+    // 2. Envio Assíncrono dos Dados para o Backend
+    document.getElementById('formCadastro').addEventListener('submit', function(e) {
+        e.preventDefault(); // Impede a página de recarregar
+        
+        // Recolhe todos os dados dos inputs
+        const dados = {
+            nome: document.getElementById('nome').value,
+            email: document.getElementById('email').value,
+            senha: document.getElementById('senha').value,
+            cep: document.getElementById('cep').value,
+            logradouro: document.getElementById('logradouro').value,
+            bairro: document.getElementById('bairro').value,
+            cidade: document.getElementById('cidade').value,
+            uf: document.getElementById('uf').value,
+            numero: document.getElementById('numero').value,
+            complemento: document.getElementById('complemento').value
+        };
+
+        // Envia para a rota da API no Flask
+        fetch('/api/alunos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        })
+        .then(response => {
+            if (response.ok) {
+                alert('Cadastro realizado com sucesso! Pode agora fazer login.');
+                window.location.href = '/login'; // Redireciona para o login
+            } else {
+                response.json().then(data => alert('Erro: ' + data.erro));
+            }
+        })
+        .catch(error => {
+            console.error('Erro na requisição:', error);
+            alert('Ocorreu um erro no servidor. Tente novamente mais tarde.');
+        });
+    });
+</script>
+{% endblock %}
