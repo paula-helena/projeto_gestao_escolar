@@ -15,7 +15,8 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'chave_secreta_para_desenvolvimento')
 bcrypt = Bcrypt(app)
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:admin123@localhost:5432/gestao_escolar')
+DATABASE_URL="postgresql://neondb_owner:npg_RA2ZxL3oFUOe@ep-bitter-smoke-acv3rf8u.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL_POOLED="postgresql://neondb_owner:npg_RA2ZxL3oFUOe@ep-bitter-smoke-acv3rf8u-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 
 # ==================================================
 # DECORATOR DE CONTROLE DE ACESSO (BLOQUEIO)
@@ -297,7 +298,124 @@ def cadastrar_professor():
         conexao.close()
 
 # ==================================================
-# 8. INICIALIZAÇÃO DO SERVIDOR
+# 8. GESTÃO DE TEMAS
+# ==================================================
+
+# Rota para Listar e Cadastrar Temas
+@app.route('/temas', methods=['GET', 'POST'])
+@login_required('PROFESSOR') # Ou o nível de acesso que preferir
+def gerenciar_temas():
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    if request.method == 'POST':
+        titulo = request.form.get('titulo')
+        descricao = request.form.get('descricao')
+        
+        cursor.execute(
+            "INSERT INTO Tema (titulo, descricao) VALUES (%s, %s)",
+            (titulo, descricao)
+        )
+        conexao.commit()
+        flash('Tema cadastrado com sucesso!', 'success')
+        return redirect(url_for('gerenciar_temas'))
+
+    # Busca todos os temas cadastrados
+    cursor.execute("SELECT id_tema, titulo, descricao FROM Tema ORDER BY id_tema DESC")
+    temas = cursor.fetchall()
+    
+    cursor.close()
+    conexao.close()
+    return render_template('temas.html', temas=temas)
+
+# Rota para Ver Detalhes do Tema e Materiais Relacionados
+@app.route('/temas/<int:id_tema>')
+@login_required('PROFESSOR')
+def detalhe_tema(id_tema):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    # Busca o tema específico
+    cursor.execute("SELECT id_tema, titulo, descricao FROM Tema WHERE id_tema = %s", (id_tema,))
+    tema = cursor.fetchone()
+
+    if not tema:
+        flash('Tema não encontrado.', 'danger')
+        return redirect(url_for('gerenciar_temas'))
+
+    # Como a tabela Material_Didatico não tem FK direta para id_tema, 
+    # podemos buscar os materiais cujo título/descrição corresponda ou relacioná-los pelo título do tema:
+    cursor.execute(
+        "SELECT id_material, titulo, descricao, link_arquivo FROM Material_Didatico WHERE descricao ILIKE %s OR titulo ILIKE %s",
+        (f"%{tema[1]}%", f"%{tema[1]}%")
+    )
+    materiais = cursor.fetchall()
+
+    cursor.close()
+    conexao.close()
+    return render_template('detalhe_tema.html', tema=tema, materiais=materiais)
+
+# Rota para Exibir o Formulário de Edição do Tema
+@app.route('/temas/editar/<int:id_tema>', methods=['GET'])
+@login_required('PROFESSOR')
+def editar_tema_form(id_tema):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    cursor.execute("SELECT id_tema, titulo, descricao FROM Tema WHERE id_tema = %s", (id_tema,))
+    tema = cursor.fetchone()
+
+    cursor.close()
+    conexao.close()
+
+    if not tema:
+        flash('Tema não encontrado.', 'danger')
+        return redirect(url_for('gerenciar_temas'))
+
+    return render_template('editar_tema.html', tema=tema)
+
+# Rota para Salvar as Alterações do Tema
+@app.route('/temas/atualizar/<int:id_tema>', methods=['POST'])
+@login_required('PROFESSOR')
+def atualizar_tema(id_tema):
+    titulo = request.form.get('titulo')
+    descricao = request.form.get('descricao')
+
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    cursor.execute(
+        "UPDATE Tema SET titulo = %s, descricao = %s WHERE id_tema = %s",
+        (titulo, descricao, id_tema)
+    )
+    conexao.commit()
+
+    cursor.close()
+    conexao.close() # Garante que fecha a 'conexao' aberta acima
+
+    flash('Tema atualizado com sucesso!', 'success')
+    return redirect(url_for('gerenciar_temas'))
+
+# Rota para Excluir Tema
+@app.route('/temas/excluir/<int:id_tema>', methods=['POST'])
+@login_required('PROFESSOR')
+def excluir_tema(id_tema):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    cursor.execute("DELETE FROM Tema WHERE id_tema = %s", (id_tema,))
+    conexao.commit()
+
+    cursor.close()
+    conexao.close()
+    flash('Tema excluído com sucesso!', 'info')
+    return redirect(url_for('gerenciar_temas'))
+
+
+
+
+# ==================================================
+# 9. INICIALIZAÇÃO DO SERVIDOR
 # ==================================================
 if __name__ == '__main__':
     app.run(debug=True)

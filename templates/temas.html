@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+
+{% block title %}Gerenciamento de Temas - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row mb-5">
+    <div class="col-12">
+        <h2 class="text-primary fw-bold mb-4">Gerenciamento de Temas</h2>
+        
+        <!-- Formulário de Cadastro de Tema -->
+        <div class="card shadow-sm border-0 mb-5">
+            <div class="card-body p-4">
+                <h4 class="card-title mb-3 fw-semibold text-secondary">Cadastrar Novo Tema</h4>
+                <form action="/temas" method="POST">
+                    <div class="mb-3">
+                        <label for="titulo" class="form-label fw-semibold">Título do Tema</label>
+                        <input type="text" class="form-control" id="titulo" name="titulo" required placeholder="Ex: Gramática Avançada, Phrasal Verbs">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="descricao" class="form-label fw-semibold">Descrição</label>
+                        <textarea class="form-control" id="descricao" name="descricao" rows="3" placeholder="Breve descrição sobre o tema..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary fw-bold px-4">
+                        <i class="bi bi-plus-circle me-1"></i> Salvar Tema
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Tabela de Listagem de Temas -->
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h4 class="card-title mb-4 fw-semibold text-secondary">Temas Cadastrados</h4>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col" style="width: 25%;">Título</th>
+                                <th scope="col" style="width: 45%;">Descrição</th>
+                                <th scope="col" class="text-center" style="width: 30%;">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if temas %}
+                                {% for tema in temas %}
+                                <tr>
+                                    <td class="fw-semibold">{{ tema[1] }}</td>
+                                    <td>{{ tema[2] if tema[2] else 'Sem descrição' }}</td>
+                                    <td class="text-center">
+                                        <div class="btn-group" role="group">
+                                            <a href="/temas/{{ tema[0] }}" class="btn btn-sm btn-outline-info" title="Ver Detalhes / Materiais">
+                                                Detalhes
+                                            </a>
+                                            <a href="/temas/editar/{{ tema[0] }}" class="btn btn-sm btn-outline-warning" title="Editar Tema">
+                                                Editar
+                                            </a>
+                                            <form action="/temas/excluir/{{ tema[0] }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este tema?');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-0 rounded-end">Excluir</button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted py-4">Nenhum tema cadastrado até o momento.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
