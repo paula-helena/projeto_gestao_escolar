@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Aula - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h3 class="card-title text-center mb-4 text-primary fw-bold">
+                    <i class="bi bi-pencil-square me-2"></i>Editar Aula
+                </h3>
+                
+                <form action="/aulas/atualizar/{{ aula[0] }}" method="POST">
+                    
+                    <!-- Campo: Tema da Aula -->
+                    <div class="mb-3">
+                        <label for="tema" class="form-label fw-semibold">Tema da Aula</label>
+                        <select class="form-select" id="tema" name="tema" required>
+                            <option value="{{ aula[2] }}" selected>{{ aula[2] }} (Atual)</option>
+                            {% for t in temas %}
+                                <option value="{{ t[1] }}">{{ t[1] }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <!-- Campo: Data e Hora -->
+                    <div class="mb-3">
+                        <label for="data_hora" class="form-label fw-semibold">Data e Horário</label>
+                        <input type="datetime-local" class="form-control" id="data_hora" name="data_hora" value="{{ aula[1] }}" required>
+                    </div>
+
+                    <!-- Campo: Status da Aula -->
+                    <div class="mb-4">
+                        <label for="status" class="form-label fw-semibold">Status</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="AGENDADA" {% if aula[3] == 'AGENDADA' %}selected{% endif %}>Agendada</option>
+                            <option value="REALIZADA" {% if aula[3] == 'REALIZADA' %}selected{% endif %}>Realizada</option>
+                            <option value="CANCELADA" {% if aula[3] == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
+                        </select>
+                    </div>
+
+                    <!-- Botões de Ação -->
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg fw-bold">
+                            <i class="bi bi-check-circle me-1"></i> Salvar Alterações
+                        </button>
+                        <a href="/aulas" class="btn btn-outline-secondary">Cancelar e Voltar</a>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
