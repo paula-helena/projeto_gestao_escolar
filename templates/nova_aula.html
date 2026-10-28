@@ -14,27 +14,10 @@
                 <!-- O formulário envia os dados via POST para a rota do app.py -->
                 <form action="/aulas/nova" method="POST">
                     
-                    <!-- Campo: Selecionar Aluno -->
-                    <div class="mb-3">
-                        <label for="id_aluno" class="form-label fw-semibold">Aluno</label>
-                        <select class="form-select" id="id_aluno" name="id_aluno" required>
-                            <option value="" selected disabled>Selecione um aluno...</option>
-                            {% for aluno in alunos %}
-                                <option value="{{ aluno[0] }}">{{ aluno[1] }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-
-                    <!-- Campo: Selecionar Tema da Lista Cadastrada -->
+                    <!-- Campo: Tema da Aula -->
                     <div class="mb-3">
                         <label for="tema" class="form-label fw-semibold">Tema da Aula</label>
-                        <select class="form-select" id="tema" name="tema" required>
-                            <option value="" selected disabled>Selecione um tema cadastrado...</option>
-                            {% for t in temas %}
-                                <!-- Se a sua coluna 'tema' na tabela Aula espera o título do tema: -->
-                                <option value="{{ t[1] }}">{{ t[1] }}</option>
-                            {% endfor %}
-                        </select>
+                        <input type="text" class="form-control" id="tema" name="tema" required placeholder="Ex: Present Perfect, Conversação, Revisão Geral">
                     </div>
 
                     <!-- Campo: Data e Hora -->
