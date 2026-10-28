@@ -30,17 +30,6 @@
                     </div>
 
                 </form>
-                {% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="alert-container">
-      {% for category, message in messages %}
-        <div class="alert alert-{{ category }}" role="alert">
-          {{ message }}
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-{% endwith %}
             </div>
             <div class="card-footer text-center bg-white border-0 py-3">
                 <small class="text-muted">Ainda não tem conta? <a href="/cadastro" class="text-primary text-decoration-none fw-bold">Cadastre-se</a></small>
