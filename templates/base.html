@@ -4,11 +4,55 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Mr. Dave Idiomas{% endblock %}</title>
-    
+   
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+/* Padrão base (Modo Claro) em conformidade com WCAG (Contraste > 7:1 - Nível AAA) */
+    :root {
+        --bs-body-bg: #ffffff;
+        --bs-body-color: #333333;
+    }
+
+
+    /* Padrão de Alto Contraste (Modo Escuro WCAG AAA) */
+    [data-bs-theme="dark"] {
+        --bs-body-bg: #000000 !important;
+        --bs-body-color: #ffffff !important;
+        --bs-tertiary-bg: #121212 !important;
+        --bs-secondary-color: #ffd700 !important;
+    }
+
+
+    [data-bs-theme="dark"] a {
+        color: #3399ff !important;
+        text-decoration: !important;
+    }
+
+
+    [data-bs-theme="dark"] .card,
+    [data-bs-theme="dark"] .modal-content,
+    [data-bs-theme="dark"] .navbar {
+        background-color: #0b0b0b !important;
+        border: 1px solid #ffffff !important;
+        color: #ffffff !important;
+    }
+
+
+    [data-bs-theme="dark"] .form-control {
+        background-color: #1a1a1a !important;
+        color: #ffffff !important;
+        border-color: #ffffff !important;
+    }
+
+
+    [data-bs-theme="dark"] .form-control::placeholder {
+        color: #cccccc !important;
+    }
+</style>
 </head>
 <body class="bg-light d-flex flex-column min-vh-100">
+
 
     <!-- BARRA DE NAVEGAÇÃO -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
@@ -17,13 +61,13 @@
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
+           
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-lg-center">
-                    
+                   
                     <!-- Opções mostradas APENAS quando o usuário ESTÁ LOGADO -->
                     {% if session.get('user_id') %}
-                        
+                       
                         <!-- Links comuns para Alunos e Professores -->
                         <li class="nav-item">
                             <a class="nav-link" href="/aulas">Agenda de Aulas</a>
@@ -31,6 +75,16 @@
                         <li class="nav-item">
                             <a class="nav-link" href="/materiais">Materiais</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/aulas">Aulas</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/professores">Professores</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/alunos">Alunos</a>
+                        </li>
+
 
                         <!-- Links EXCLUSIVOS para PROFESSOR -->
                         {% if session.get('perfil') == 'PROFESSOR' %}
@@ -38,15 +92,16 @@
                                 <a class="nav-link text-warning fw-bold" href="/home-professor">Painel Professor</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/selecionar-cadastro">+ Novo Cadastro</a>
+                                <a class="nav-link" href="/cadastro-professor">+ Cadastrar Professor</a>
                             </li>
-                        
+                       
                         <!-- Links EXCLUSIVOS para ALUNO -->
                         {% elif session.get('perfil') == 'ALUNO' %}
                             <li class="nav-item">
                                 <a class="nav-link text-info fw-bold" href="/home-aluno">Meu Painel</a>
                             </li>
                         {% endif %}
+
 
                         <!-- Saudação e Botão Sair -->
                         <li class="nav-item ms-lg-3 my-1 my-lg-0">
@@ -58,25 +113,36 @@
                             <a class="btn btn-outline-light btn-sm" href="/logout">Sair</a>
                         </li>
 
+
                     <!-- Opções mostradas APENAS quando NINGUÉM está logado -->
                     {% else %}
                         <li class="nav-item">
                             <a class="nav-link" href="/login">Login</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="btn btn-light ms-lg-2 px-3 text-primary fw-bold" href="/cadastro">Cadastre-se</a>
+                        </li>
                     {% endif %}
-
+                    <!-- BOTÃO DE CONTRASTE (Disponível sempre para todos) -->
+                    <li class="nav-item my-1 my-lg-0">
+                        <button id="toggle-contraste" class="btn btn-outline-light btn-sm" onclick="alternarContraste()">
+                            🌓 Contraste
+                        </button>
+                    </li>
                 </ul>
             </div>
         </div>
     </nav>
 
+
     <!-- ÁREA PRINCIPAL ONDE AS OUTRAS PÁGINAS SÃO CARREGADAS -->
     <main class="container my-4 flex-grow-1">
-        
+       
         <!-- O bloco abaixo é o que estava a faltar para renderizar o login e o cadastro -->
         {% block content %}{% endblock %}
-        
+       
     </main>
+
 
     <!-- RODAPÉ -->
     <footer class="bg-dark text-white text-center py-3 mt-auto">
@@ -85,7 +151,35 @@
         </div>
     </footer>
 
+
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+
+
+
+<script>
+    function alternarContraste() {
+        const htmlElement = document.documentElement;
+        const currentTheme = htmlElement.getAttribute('data-bs-theme');
+       
+        if (currentTheme === 'dark') {
+            htmlElement.removeAttribute('data-bs-theme');
+            localStorage.setItem('tema', 'light');
+        } else {
+            htmlElement.setAttribute('data-bs-theme', 'dark');
+            localStorage.setItem('tema', 'dark');
+        }
+    }
+
+
+    // Aplica o tema salvo ao carregar a página
+    window.addEventListener('DOMContentLoaded', () => {
+        if (localStorage.getItem('tema') === 'dark') {
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
+        }
+    });
+</script>
 </body>
 </html>
+
