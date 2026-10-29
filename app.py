@@ -86,7 +86,7 @@ def login():
                 cursor.execute("SELECT id_professor, nome, email, senha FROM Professor WHERE email = %s", (email,))
                 usuario = cursor.fetchone()
                 perfil = 'PROFESSOR'
-
+         
             # 3. Valida se o usuário existe e se a senha confere
             if usuario and bcrypt.check_password_hash(usuario[3], senha):
                 session['user_id'] = usuario[0]
@@ -230,8 +230,17 @@ def novo_material():
 # ==================================================
 # 7. SEÇÃO DE CADASTRO (ALUNOS E PROFESSORES)
 # ==================================================
-@app.route('/cadastro')
-def pagina_cadastro():
+
+# Tela intermediária de escolha
+@app.route('/selecionar-cadastro')
+@login_required('PROFESSOR')
+def selecionar_cadastro():
+    return render_template('selecionar_cadastro.html')
+
+
+@app.route('/cadastro-aluno')
+@login_required('PROFESSOR')
+def pagina_cadastro_aluno():
     return render_template('cadastro_aluno.html')
 
 @app.route('/api/alunos', methods=['POST'])
