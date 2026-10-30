@@ -230,80 +230,256 @@ def novo_material():
 # ==================================================
 # 7. SEÇÃO DE CADASTRO (ALUNOS E PROFESSORES)
 # ==================================================
-
-# Tela intermediária de escolha
-@app.route('/selecionar-cadastro')
-@login_required('PROFESSOR')
-def selecionar_cadastro():
-    return render_template('selecionar_cadastro.html')
-
-
-@app.route('/cadastro-aluno')
-@login_required('PROFESSOR')
-def pagina_cadastro_aluno():
+@app.route('/cadastro')
+def pagina_cadastro():
     return render_template('cadastro_aluno.html')
+
 
 @app.route('/api/alunos', methods=['POST'])
 def cadastrar_aluno():
     dados = request.json
     senha_hash = bcrypt.generate_password_hash(dados['senha']).decode('utf-8')
-    
+   
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
-    
+   
     try:
         cursor.execute("""
-            INSERT INTO Aluno (nome, email, senha, cep, logradouro, bairro, cidade, uf, numero, complemento) 
+            INSERT INTO Aluno (nome, email, senha, cep, logradouro, bairro, cidade, uf, numero, complemento)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id_aluno, nome
         """, (
-            dados['nome'], dados['email'], senha_hash, dados['cep'], 
-            dados['logradouro'], dados['bairro'], dados['cidade'], 
+            dados['nome'], dados['email'], senha_hash, dados['cep'],
+            dados['logradouro'], dados['bairro'], dados['cidade'],
             dados['uf'], dados['numero'], dados.get('complemento')
         ))
         novo_aluno = cursor.fetchone()
         conexao.commit()
         return jsonify({"mensagem": "Sucesso", "id": novo_aluno[0], "nome": novo_aluno[1]}), 201
-        
+       
     except psycopg2.IntegrityError:
         conexao.rollback()
         return jsonify({"erro": "E-mail já cadastrado no sistema."}), 400
     finally:
         cursor.close()
         conexao.close()
+       
+@app.route('/alunos', methods=['GET'])
+@login_required('PROFESSOR')
+def gerenciar_alunos():
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+
+    cursor.execute("SELECT id_aluno, nome, email, cidade, uf FROM Aluno ORDER BY id_aluno DESC")
+    alunos = cursor.fetchall()
+   
+    cursor.close()
+    conexao.close()
+    return render_template('alunos.html', alunos=alunos)
+
+
+@app.route('/alunos/editar/<int:id_aluno>', methods=['GET'])
+@login_required('PROFESSOR')
+def editar_aluno_form(id_aluno):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+
+    cursor.execute("SELECT id_aluno, nome, email, cep, logradouro, bairro, cidade, uf, numero, complemento FROM Aluno WHERE id_aluno = %s", (id_aluno,))
+    aluno = cursor.fetchone()
+
+
+    cursor.close()
+    conexao.close()
+
+
+    if not aluno:
+        flash('Aluno não encontrado.', 'danger')
+        return redirect(url_for('gerenciar_alunos'))
+
+
+    return render_template('editar_aluno.html', aluno=aluno)
+
+
+@app.route('/alunos/atualizar/<int:id_aluno>', methods=['POST'])
+@login_required('PROFESSOR')
+def atualizar_aluno(id_aluno):
+    nome = request.form.get('nome')
+    email = request.form.get('email')
+    cep = request.form.get('cep')
+    logradouro = request.form.get('logradouro')
+    bairro = request.form.get('bairro')
+    cidade = request.form.get('cidade')
+    uf = request.form.get('uf')
+    numero = request.form.get('numero')
+    complemento = request.form.get('complemento')
+
+
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+
+    cursor.execute(
+        """UPDATE Aluno SET nome = %s, email = %s, cep = %s, logradouro = %s,
+           bairro = %s, cidade = %s, uf = %s, numero = %s, complemento = %s WHERE id_aluno = %s""",
+        (nome, email, cep, logradouro, bairro, cidade, uf, numero, complemento, id_aluno)
+    )
+    conexao.commit()
+
+
+    cursor.close()
+    conexao.close()
+
+
+    flash('Cadastro do aluno atualizado com sucesso!', 'success')
+    return redirect(url_for('gerenciar_alunos'))
+
+
+@app.route('/alunos/excluir/<int:id_aluno>', methods=['POST'])
+@login_required('PROFESSOR')
+def excluir_aluno(id_aluno):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+
+    cursor.execute("DELETE FROM Aluno WHERE id_aluno = %s", (id_aluno,))
+    conexao.commit()
+
+
+    cursor.close()
+    conexao.close()
+   
+    flash('Aluno excluído com sucesso!', 'info')
+    return redirect(url_for('gerenciar_alunos'))  
+
+
+
 
 @app.route('/cadastro-professor')
 @login_required('PROFESSOR')
 def pagina_cadastro_professor():
     return render_template('cadastro_professor.html')
 
+
 @app.route('/api/professores', methods=['POST'])
 @login_required('PROFESSOR')
 def cadastrar_professor():
     dados = request.json
     senha_hash = bcrypt.generate_password_hash(dados['senha']).decode('utf-8')
-    
+   
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
-    
+   
     try:
         cursor.execute("""
-            INSERT INTO Professor (nome, email, senha, disciplina, cep, logradouro, bairro, cidade, uf, numero, complemento) 
+            INSERT INTO Professor (nome, email, senha, disciplina, cep, logradouro, bairro, cidade, uf, numero, complemento)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id_professor, nome
         """, (
             dados['nome'], dados['email'], senha_hash, dados['disciplina'],
-            dados['cep'], dados['logradouro'], dados['bairro'], dados['cidade'], 
+            dados['cep'], dados['logradouro'], dados['bairro'], dados['cidade'],
             dados['uf'], dados['numero'], dados.get('complemento')
         ))
         novo_prof = cursor.fetchone()
         conexao.commit()
         return jsonify({"mensagem": "Sucesso", "id": novo_prof[0], "nome": novo_prof[1]}), 201
-        
+       
     except psycopg2.IntegrityError:
         conexao.rollback()
         return jsonify({"erro": "E-mail já cadastrado no sistema."}), 400
     finally:
         cursor.close()
         conexao.close()
+       
+@app.route('/professores', methods=['GET'])
+@login_required('PROFESSOR')
+def gerenciar_professores():
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+
+    cursor.execute("SELECT id_professor, nome, email, disciplina, cidade, uf FROM Professor ORDER BY id_professor DESC")
+    professores = cursor.fetchall()
+   
+    cursor.close()
+    conexao.close()
+    return render_template('professores.html', professores=professores)
+
+
+@app.route('/professores/editar/<int:id_professor>', methods=['GET'])
+@login_required('PROFESSOR')
+def editar_professor_form(id_professor):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+
+    cursor.execute("SELECT id_professor, nome, email, disciplina, cep, logradouro, bairro, cidade, uf, numero, complemento FROM Professor WHERE id_professor = %s", (id_professor,))
+    professor = cursor.fetchone()
+
+
+    cursor.close()
+    conexao.close()
+
+
+    if not professor:
+        flash('Professor não encontrado.', 'danger')
+        return redirect(url_for('gerenciar_professores'))
+
+
+    return render_template('editar_professor.html', professor=professor)
+
+
+@app.route('/professores/atualizar/<int:id_professor>', methods=['POST'])
+@login_required('PROFESSOR')
+def atualizar_professor(id_professor):
+    nome = request.form.get('nome')
+    email = request.form.get('email')
+    disciplina = request.form.get('disciplina')
+    cep = request.form.get('cep')
+    logradouro = request.form.get('logradouro')
+    bairro = request.form.get('bairro')
+    cidade = request.form.get('cidade')
+    uf = request.form.get('uf')
+    numero = request.form.get('numero')
+    complemento = request.form.get('complemento')
+
+
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+
+    cursor.execute(
+        """UPDATE Professor SET nome = %s, email = %s, disciplina = %s, cep = %s, logradouro = %s,
+           bairro = %s, cidade = %s, uf = %s, numero = %s, complemento = %s WHERE id_professor = %s""",
+        (nome, email, disciplina, cep, logradouro, bairro, cidade, uf, numero, complemento, id_professor)
+    )
+    conexao.commit()
+
+
+    cursor.close()
+    conexao.close()
+
+
+    flash('Cadastro do professor atualizado com sucesso!', 'success')
+    return redirect(url_for('gerenciar_professores'))
+
+
+@app.route('/professores/excluir/<int:id_professor>', methods=['POST'])
+@login_required('PROFESSOR')
+def excluir_professor(id_professor):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+
+    cursor.execute("DELETE FROM Professor WHERE id_professor = %s", (id_professor,))
+    conexao.commit()
+
+
+    cursor.close()
+    conexao.close()
+   
+    flash('Professor excluído com sucesso!', 'info')
+    return redirect(url_for('gerenciar_professores'))
+
 
 # ==================================================
 # 8. INICIALIZAÇÃO DO SERVIDOR
