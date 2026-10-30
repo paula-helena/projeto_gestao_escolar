@@ -8,54 +8,17 @@
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-/* Padrão base (Modo Claro) em conformidade com WCAG (Contraste > 7:1 - Nível AAA) */
-    :root {
-        --bs-body-bg: #ffffff;
-        --bs-body-color: #333333;
-    }
-
-
-    /* Padrão de Alto Contraste (Modo Escuro WCAG AAA) */
-    [data-bs-theme="dark"] {
-        --bs-body-bg: #000000 !important;
-        --bs-body-color: #ffffff !important;
-        --bs-tertiary-bg: #121212 !important;
-        --bs-secondary-color: #ffd700 !important;
-    }
-
-
-    [data-bs-theme="dark"] a {
-        color: #3399ff !important;
-        text-decoration: !important;
-    }
-
-
-    [data-bs-theme="dark"] .card,
-    [data-bs-theme="dark"] .modal-content,
-    [data-bs-theme="dark"] .navbar {
-        background-color: #0b0b0b !important;
-        border: 1px solid #ffffff !important;
-        color: #ffffff !important;
-    }
-
-
-    [data-bs-theme="dark"] .form-control {
-        background-color: #1a1a1a !important;
-        color: #ffffff !important;
-        border-color: #ffffff !important;
-    }
-
-
-    [data-bs-theme="dark"] .form-control::placeholder {
-        color: #cccccc !important;
-    }
-</style>
+        /* Ajustes mínimos opcionais apenas para suavizar transições */
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+    </style>
 </head>
 <body class="bg-light d-flex flex-column min-vh-100">
 
 
     <!-- BARRA DE NAVEGAÇÃO -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <nav class="navbar navbar-expand-lg bg-primary navbar-light shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold" href="/">Mr. Dave Idiomas</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -75,7 +38,15 @@
                         <li class="nav-item">
                             <a class="nav-link" href="/materiais">Materiais</a>
                         </li>
-                        <li class="nav-item">
+
+
+
+                        <!-- Links EXCLUSIVOS para PROFESSOR -->
+                        {% if session.get('perfil') == 'PROFESSOR' %}
+                            <li class="nav-item">
+                                <a class="nav-link text-warning fw-bold" href="/home-professor">Painel Professor</a>
+                            </li>
+                                                    <li class="nav-item">
                             <a class="nav-link" href="/aulas">Aulas</a>
                         </li>
                         <li class="nav-item">
@@ -84,13 +55,6 @@
                         <li class="nav-item">
                             <a class="nav-link" href="/alunos">Alunos</a>
                         </li>
-
-
-                        <!-- Links EXCLUSIVOS para PROFESSOR -->
-                        {% if session.get('perfil') == 'PROFESSOR' %}
-                            <li class="nav-item">
-                                <a class="nav-link text-warning fw-bold" href="/home-professor">Painel Professor</a>
-                            </li>
                             <li class="nav-item">
                                 <a class="nav-link" href="/cadastro-professor">+ Cadastrar Professor</a>
                             </li>
@@ -162,9 +126,9 @@
     function alternarContraste() {
         const htmlElement = document.documentElement;
         const currentTheme = htmlElement.getAttribute('data-bs-theme');
-       
+        
         if (currentTheme === 'dark') {
-            htmlElement.removeAttribute('data-bs-theme');
+            htmlElement.setAttribute('data-bs-theme', 'light');
             localStorage.setItem('tema', 'light');
         } else {
             htmlElement.setAttribute('data-bs-theme', 'dark');
@@ -172,12 +136,10 @@
         }
     }
 
-
     // Aplica o tema salvo ao carregar a página
     window.addEventListener('DOMContentLoaded', () => {
-        if (localStorage.getItem('tema') === 'dark') {
-            document.documentElement.setAttribute('data-bs-theme', 'dark');
-        }
+        const savedTheme = localStorage.getItem('tema') || 'light';
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
     });
 </script>
 </body>
