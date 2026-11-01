@@ -4,26 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Mr. Dave Idiomas{% endblock %}</title>
-    
+   
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Ajustes mínimos opcionais apenas para suavizar transições */
+        body {
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+    </style>
 </head>
 <body class="bg-light d-flex flex-column min-vh-100">
 
+
     <!-- BARRA DE NAVEGAÇÃO -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
+    <nav class="navbar navbar-expand-lg bg-primary navbar-light shadow-sm">
         <div class="container">
             <a class="navbar-brand fw-bold" href="/">Mr. Dave Idiomas</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
-            
+           
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-lg-center">
-                    
+                   
                     <!-- Opções mostradas APENAS quando o usuário ESTÁ LOGADO -->
                     {% if session.get('user_id') %}
-                        
+                       
                         <!-- Links comuns para Alunos e Professores -->
                         <li class="nav-item">
                             <a class="nav-link" href="/aulas">Agenda de Aulas</a>
@@ -32,21 +39,33 @@
                             <a class="nav-link" href="/materiais">Materiais</a>
                         </li>
 
+
+
                         <!-- Links EXCLUSIVOS para PROFESSOR -->
                         {% if session.get('perfil') == 'PROFESSOR' %}
                             <li class="nav-item">
                                 <a class="nav-link text-warning fw-bold" href="/home-professor">Painel Professor</a>
                             </li>
+                                                    <li class="nav-item">
+                            <a class="nav-link" href="/aulas">Aulas</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/professores">Professores</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/alunos">Alunos</a>
+                        </li>
                             <li class="nav-item">
-                                <a class="nav-link" href="/selecionar-cadastro">+ Novo Cadastro</a>
+                                <a class="nav-link" href="/cadastro-professor">+ Cadastrar Professor</a>
                             </li>
-                        
+                       
                         <!-- Links EXCLUSIVOS para ALUNO -->
                         {% elif session.get('perfil') == 'ALUNO' %}
                             <li class="nav-item">
                                 <a class="nav-link text-info fw-bold" href="/home-aluno">Meu Painel</a>
                             </li>
                         {% endif %}
+
 
                         <!-- Saudação e Botão Sair -->
                         <li class="nav-item ms-lg-3 my-1 my-lg-0">
@@ -58,25 +77,36 @@
                             <a class="btn btn-outline-light btn-sm" href="/logout">Sair</a>
                         </li>
 
+
                     <!-- Opções mostradas APENAS quando NINGUÉM está logado -->
                     {% else %}
                         <li class="nav-item">
                             <a class="nav-link" href="/login">Login</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="btn btn-light ms-lg-2 px-3 text-primary fw-bold" href="/cadastro">Cadastre-se</a>
+                        </li>
                     {% endif %}
-
+                    <!-- BOTÃO DE CONTRASTE (Disponível sempre para todos) -->
+                    <li class="nav-item my-1 my-lg-0">
+                        <button id="toggle-contraste" class="btn btn-outline-light btn-sm" onclick="alternarContraste()">
+                            🌓 Contraste
+                        </button>
+                    </li>
                 </ul>
             </div>
         </div>
     </nav>
 
+
     <!-- ÁREA PRINCIPAL ONDE AS OUTRAS PÁGINAS SÃO CARREGADAS -->
     <main class="container my-4 flex-grow-1">
-        
+       
         <!-- O bloco abaixo é o que estava a faltar para renderizar o login e o cadastro -->
         {% block content %}{% endblock %}
-        
+       
     </main>
+
 
     <!-- RODAPÉ -->
     <footer class="bg-dark text-white text-center py-3 mt-auto">
@@ -85,7 +115,33 @@
         </div>
     </footer>
 
+
     <!-- Bootstrap 5 JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+
+
+
+<script>
+    function alternarContraste() {
+        const htmlElement = document.documentElement;
+        const currentTheme = htmlElement.getAttribute('data-bs-theme');
+        
+        if (currentTheme === 'dark') {
+            htmlElement.setAttribute('data-bs-theme', 'light');
+            localStorage.setItem('tema', 'light');
+        } else {
+            htmlElement.setAttribute('data-bs-theme', 'dark');
+            localStorage.setItem('tema', 'dark');
+        }
+    }
+
+    // Aplica o tema salvo ao carregar a página
+    window.addEventListener('DOMContentLoaded', () => {
+        const savedTheme = localStorage.getItem('tema') || 'light';
+        document.documentElement.setAttribute('data-bs-theme', savedTheme);
+    });
+</script>
 </body>
 </html>
+
