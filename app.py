@@ -71,43 +71,67 @@ def login():
     if request.method == 'POST':
         email = request.form.get('email')
         senha = request.form.get('senha')
+        perfil_solicitado = request.form.get('perfil')
 
         conexao = psycopg2.connect(DATABASE_URL)
         cursor = conexao.cursor()
 
         try:
-            # 1. Procura na tabela Aluno
-            cursor.execute("SELECT id_aluno, nome, email, senha FROM Aluno WHERE email = %s", (email,))
-            usuario = cursor.fetchone()
-            perfil = 'ALUNO'
-
-            # 2. Se não encontrar em Aluno, procura em Professor
-            if not usuario:
-                cursor.execute("SELECT id_professor, nome, email, senha FROM Professor WHERE email = %s", (email,))
+            perfis = {
+                'ALUNO': ('public.aluno', 'id_aluno'),
+                'PROFESSOR': ('public.professor', 'id_professor'),
+            }
+            candidatos = (
+                [perfil_solicitado]
+                if perfil_solicitado in perfis
+                else ['ALUNO', 'PROFESSOR'] if perfil_solicitado is None else []
+            )
+            usuario = None
+            perfil = None
+            for candidato in candidatos:
+                tabela, id_coluna = perfis[candidato]
+                cursor.execute(
+                    f"SELECT {id_coluna}, nome, email, senha FROM {tabela} WHERE email = %s",
+                    (email,)
+                )
                 usuario = cursor.fetchone()
-                perfil = 'PROFESSOR'
-         
-            # 3. Valida se o usuário existe e se a senha confere
-            if usuario and bcrypt.check_password_hash(usuario[3], senha):
-                session['user_id'] = usuario[0]
-                session['nome'] = usuario[1]
-                session['email'] = usuario[2]
-                session['perfil'] = perfil
+                if usuario:
+                    perfil = candidato
+                    break
 
-                flash(f'Bem-vindo(a), {usuario[1]}!', 'success')
+            if usuario:
+                senha_banco = usuario[3]
 
-                if perfil == 'PROFESSOR':
-                    return redirect(url_for('home_professor'))
-                return redirect(url_for('home_aluno'))
-            else:
-                flash('E-mail ou senha incorretos. Tente novamente.', 'danger')
-                return redirect(url_for('login'))
+                # Valida se a senha usa hash bcrypt ou se é texto puro
+                if senha_banco.startswith('$2b$') or senha_banco.startswith('$2a$'):
+                    senha_valida = bcrypt.check_password_hash(senha_banco, senha)
+                else:
+                    senha_valida = (senha_banco == senha)
+
+                # 3. Autentica e salva a sessão
+                if senha_valida:
+                    session['user_id'] = usuario[0]
+                    session['nome'] = usuario[1]
+                    session['email'] = usuario[2]
+                    session['perfil'] = perfil
+
+                    flash(f'Bem-vindo(a), {usuario[1]}!', 'success')
+
+                    # Redireciona ambos os perfis para a rota unificada listar_aulas
+                    return redirect(url_for('listar_aulas'))
+
+            # Se não encontrou o usuário ou a senha estava incorreta
+            flash('E-mail ou senha incorretos. Tente novamente.', 'danger')
+
+        except Exception as e:
+            flash(f'Erro ao processar login: {str(e)}', 'danger')
 
         finally:
             cursor.close()
             conexao.close()
 
     return render_template('login.html')
+
 
 @app.route('/logout')
 def logout():
@@ -135,40 +159,93 @@ def home_aluno():
 # ==================================================
 # 5. GESTÃO DE AULAS (AGENDAMENTO)
 # ==================================================
+@app.route('/aulas/nova', methods=['GET', 'POST'])
+@login_required('PROFESSOR')
+def nova_aula():
+    """Rota para o professor cadastrar uma nova aula vinculando a um aluno e a um tema"""
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+
+    if request.method == 'POST':
+        data_hora = request.form.get('data_hora')
+        tema = request.form.get('tema') # Recebe o nome do tema escolhido no dropdown
+        id_aluno = request.form.get('id_aluno')
+       
+        try:
+            # 1. Cria a aula na tabela aula
+            cursor.execute("""
+                INSERT INTO public.aula (id_professor, data_hora, tema, status)
+                VALUES (%s, %s, %s, 'AGENDADA') RETURNING id_aula
+            """, (session.get('user_id'), data_hora, tema))
+           
+            nova_aula_id = cursor.fetchone()[0]
+
+            # 2. Se o aluno foi selecionado, cria o vínculo na tabela aula_aluno
+            if id_aluno:
+                cursor.execute("""
+                    INSERT INTO public.aula_aluno (id_aluno, id_aula, presenca)
+                    VALUES (%s, %s, FALSE)
+                """, (id_aluno, nova_aula_id))
+
+            conexao.commit()
+            flash('Aula agendada e vinculada ao aluno com sucesso!', 'success')
+            return redirect(url_for('listar_aulas'))
+        except Exception as e:
+            conexao.rollback()
+            flash(f'Erro ao agendar aula: {str(e)}', 'danger')
+            return redirect(url_for('nova_aula'))
+        finally:
+            cursor.close()
+            conexao.close()
+           
+    # Método GET: Apenas busca alunos e temas para carregar na tela
+    try:
+        # Busca os alunos cadastrados para o dropdown
+        cursor.execute("SELECT id_aluno, nome FROM public.aluno ORDER BY nome")
+        alunos = cursor.fetchall()
+       
+        # Busca os temas cadastrados para o dropdown
+        cursor.execute("SELECT id_tema, titulo FROM public.tema ORDER BY titulo")
+        temas = cursor.fetchall()
+
+        return render_template('nova_aula.html', alunos=alunos, temas=temas)
+    except Exception as e:
+        flash(f'Erro ao carregar dados de agendamento: {str(e)}', 'danger')
+        return redirect(url_for('listar_aulas'))
+    finally:
+        cursor.close()
+        conexao.close()
+
+
 @app.route('/aulas', methods=['GET'])
 @login_required()
 def listar_aulas():
+    """Lista apenas as aulas do professor ou aluno autenticado."""
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
-   
     try:
         if session.get('perfil') == 'PROFESSOR':
-            # Professor vê todas as aulas dele, trazendo o nome do aluno vinculado (se houver)
             cursor.execute("""
                 SELECT a.id_aula, a.data_hora, a.tema, a.status,
-                       COALESCE(al.nome, 'Não vinculado') as aluno_nome,
-                       p.nome as professor_nome
-                FROM Aula a
-                LEFT JOIN Aula_Aluno aa ON a.id_aula = aa.id_aula
-                LEFT JOIN Aluno al ON aa.id_aluno = al.id_aluno
-                JOIN Professor p ON a.id_professor = p.id_professor
+                       COALESCE(al.nome, 'Não vinculado'), p.nome
+                FROM public.aula AS a
+                JOIN public.professor AS p ON p.id_professor = a.id_professor
+                LEFT JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
+                LEFT JOIN public.aluno AS al ON al.id_aluno = aa.id_aluno
                 WHERE a.id_professor = %s
                 ORDER BY a.data_hora
-            """, (session.get('user_id'),))
+            """, (session['user_id'],))
         else:
-            # Aluno vê apenas as aulas dele
             cursor.execute("""
                 SELECT a.id_aula, a.data_hora, a.tema, a.status,
-                       al.nome as aluno_nome,
-                       p.nome as professor_nome
-                FROM Aula a
-                JOIN Aula_Aluno aa ON a.id_aula = aa.id_aula
-                JOIN Aluno al ON aa.id_aluno = al.id_aluno
-                JOIN Professor p ON a.id_professor = p.id_professor
+                       al.nome, p.nome
+                FROM public.aula AS a
+                JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
+                JOIN public.aluno AS al ON al.id_aluno = aa.id_aluno
+                JOIN public.professor AS p ON p.id_professor = a.id_professor
                 WHERE aa.id_aluno = %s
                 ORDER BY a.data_hora
-            """, (session.get('user_id'),))
-           
+            """, (session['user_id'],))
         aulas = cursor.fetchall()
         return render_template('aulas.html', aulas=aulas)
     finally:
@@ -176,118 +253,61 @@ def listar_aulas():
         conexao.close()
 
 
-@app.route('/aulas/nova', methods=['GET', 'POST'])
-@login_required('PROFESSOR')
-def nova_aula():
-    """Rota para o professor cadastrar uma nova aula"""
-    conexao = psycopg2.connect(DATABASE_URL)
-    cursor = conexao.cursor()
-
-
-    if request.method == 'POST':
-        data_hora = request.form.get('data_hora')
-        tema = request.form.get('tema') # Aqui receberá o título ou ID do tema escolhido
-        id_aluno = request.form.get('id_aluno')
-       
-        try:
-            cursor.execute("""
-                INSERT INTO Aula (id_professor, data_hora, tema, status)
-                VALUES (%s, %s, %s, 'AGENDADA') RETURNING id_aula
-            """, (session.get('user_id'), data_hora, tema))
-           
-            nova_aula_id = cursor.fetchone()[0]
-
-
-            if id_aluno:
-                cursor.execute("""
-                    INSERT INTO Aula_Aluno (id_aluno, id_aula, presenca)
-                    VALUES (%s, %s, FALSE)
-                """, (id_aluno, nova_aula_id))
-
-
-            conexao.commit()
-            flash('Aula agendada e vinculada ao aluno com sucesso!', 'success')
-            return redirect(url_for('listar_aulas'))
-        except Exception as e:
-            conexao.rollback()
-            flash('Erro ao agendar aula.', 'danger')
-            return redirect(url_for('nova_aula'))
-        finally:
-            cursor.close()
-            conexao.close()
-           
-    try:
-        # Busca os alunos cadastrados
-        cursor.execute("SELECT id_aluno, nome FROM Aluno ORDER BY nome")
-        alunos = cursor.fetchall()
-       
-        # Busca os temas cadastrados para popular a lista
-        cursor.execute("SELECT id_tema, titulo FROM Tema ORDER BY titulo")
-        temas = cursor.fetchall()
-    finally:
-        cursor.close()
-        conexao.close()
-       
-    return render_template('nova_aula.html', alunos=alunos, temas=temas)
-
-
 @app.route('/aulas/editar/<int:id_aula>', methods=['GET'])
 @login_required('PROFESSOR')
 def editar_aula_form(id_aula):
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
-
-
     try:
-        # Busca os dados da aula específica
-        cursor.execute("SELECT id_aula, data_hora, tema, status FROM Aula WHERE id_aula = %s", (id_aula,))
+        cursor.execute("""
+            SELECT id_aula, data_hora, tema, status
+            FROM public.aula
+            WHERE id_aula = %s AND id_professor = %s
+        """, (id_aula, session['user_id']))
         aula = cursor.fetchone()
+        if not aula:
+            flash('Aula não encontrada.', 'danger')
+            return redirect(url_for('listar_aulas'))
 
-
-        # Busca temas e alunos para os selects do formulário
-        cursor.execute("SELECT id_tema, titulo FROM Tema ORDER BY titulo")
+        cursor.execute("SELECT id_tema, titulo FROM public.tema ORDER BY titulo")
         temas = cursor.fetchall()
+        return render_template('editar_aula.html', aula=aula, temas=temas)
     finally:
         cursor.close()
         conexao.close()
-
-
-    if not aula:
-        flash('Aula não encontrada.', 'danger')
-        return redirect(url_for('listar_aulas'))
-
-
-    return render_template('editar_aula.html', aula=aula, temas=temas)
 
 
 @app.route('/aulas/atualizar/<int:id_aula>', methods=['POST'])
 @login_required('PROFESSOR')
 def atualizar_aula(id_aula):
-    data_hora = request.form.get('data_hora')
-    tema = request.form.get('tema')
-    status = request.form.get('status')
-
-
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
-
-
     try:
-        cursor.execute(
-            """UPDATE Aula SET data_hora = %s, tema = %s, status = %s WHERE id_aula = %s""",
-            (data_hora, tema, status, id_aula)
-        )
+        cursor.execute("""
+            UPDATE public.aula
+            SET tema = %s, data_hora = %s, status = %s
+            WHERE id_aula = %s AND id_professor = %s
+            RETURNING id_aula
+        """, (
+            request.form.get('tema'),
+            request.form.get('data_hora'),
+            request.form.get('status'),
+            id_aula,
+            session['user_id'],
+        ))
+        if not cursor.fetchone():
+            conexao.rollback()
+            flash('Aula não encontrada.', 'danger')
+            return redirect(url_for('listar_aulas'))
         conexao.commit()
         flash('Aula atualizada com sucesso!', 'success')
-    except Exception as e:
+        return redirect(url_for('listar_aulas'))
+    except Exception:
         conexao.rollback()
-        flash('Erro ao atualizar aula.', 'danger')
+        raise
     finally:
         cursor.close()
         conexao.close()
-
-
-    return redirect(url_for('listar_aulas'))
 
 
 @app.route('/aulas/excluir/<int:id_aula>', methods=['POST'])
@@ -295,22 +315,23 @@ def atualizar_aula(id_aula):
 def excluir_aula(id_aula):
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
-
-
     try:
-        # Como tem chave estrangeira com onDelete Cascade ou tabela associativa, removemos os vínculos primeiro se necessário
-        cursor.execute("DELETE FROM Aula_Aluno WHERE id_aula = %s", (id_aula,))
-        cursor.execute("DELETE FROM Aula WHERE id_aula = %s", (id_aula,))
-        conexao.commit()
-        flash('Aula excluída com sucesso!', 'info')
-    except Exception as e:
+        cursor.execute(
+            "DELETE FROM public.aula WHERE id_aula = %s AND id_professor = %s",
+            (id_aula, session['user_id'])
+        )
+        if cursor.rowcount == 0:
+            flash('Aula não encontrada.', 'danger')
+        else:
+            conexao.commit()
+            flash('Aula excluída com sucesso!', 'info')
+        return redirect(url_for('listar_aulas'))
+    except Exception:
         conexao.rollback()
-        flash('Erro ao excluir aula.', 'danger')
+        raise
     finally:
         cursor.close()
         conexao.close()
-       
-    return redirect(url_for('listar_aulas'))
 
 
 # ==================================================
@@ -615,6 +636,31 @@ def excluir_professor(id_professor):
 # ==================================================
 # 8. GESTÃO DE TEMAS
 # ==================================================
+
+@app.route('/temas/novo', methods=['POST'])
+@login_required('PROFESSOR')
+def novo_tema():
+    titulo = request.form.get('nome_tema', '').strip()
+    if not titulo:
+        flash('Informe o nome do tema.', 'warning')
+        return redirect(url_for('nova_aula'))
+
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO public.tema (titulo) VALUES (%s)",
+            (titulo,)
+        )
+        conexao.commit()
+        flash('Tema cadastrado com sucesso!', 'success')
+    except Exception:
+        conexao.rollback()
+        raise
+    finally:
+        cursor.close()
+        conexao.close()
+    return redirect(url_for('nova_aula'))
 
 
 # Rota para Listar e Cadastrar Temas
