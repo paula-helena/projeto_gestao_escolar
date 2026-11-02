@@ -71,7 +71,68 @@ CREATE TABLE Aula_Aluno (         -- Renomeado de Controle_Academico para bater 
     presenca BOOLEAN DEFAULT FALSE,
     nota_oficial DECIMAL(5,2),      
     nota_autoavaliacao DECIMAL(5,2),
+    revisar BOOLEAN NOT NULL DEFAULT FALSE,
     PRIMARY KEY (id_aluno, id_aula), 
     FOREIGN KEY (id_aluno) REFERENCES Aluno(id_aluno) ON DELETE CASCADE,
     FOREIGN KEY (id_aula) REFERENCES Aula(id_aula) ON DELETE CASCADE
+);
+
+ALTER TABLE public.aula
+    ALTER COLUMN tema DROP NOT NULL,
+    ADD COLUMN IF NOT EXISTS id_recorrencia INTEGER,
+    ADD COLUMN IF NOT EXISTS id_aula_origem INTEGER;
+
+CREATE TABLE Aula_Recorrencia (
+    id_recorrencia SERIAL PRIMARY KEY,
+    id_professor INTEGER NOT NULL REFERENCES Professor(id_professor),
+    id_aluno INTEGER NOT NULL REFERENCES Aluno(id_aluno),
+    tema VARCHAR(150),
+    inicio DATE NOT NULL,
+    hora TIME NOT NULL,
+    dias_semana INTEGER[] NOT NULL,
+    fim_em DATE,
+    gerada_ate DATE NOT NULL,
+    ativa BOOLEAN NOT NULL DEFAULT TRUE,
+    criada_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE public.aula
+    ADD CONSTRAINT aula_id_recorrencia_fkey
+        FOREIGN KEY (id_recorrencia)
+        REFERENCES public.aula_recorrencia(id_recorrencia)
+        ON DELETE SET NULL,
+    ADD CONSTRAINT aula_id_aula_origem_fkey
+        FOREIGN KEY (id_aula_origem)
+        REFERENCES public.aula(id_aula)
+        ON DELETE SET NULL;
+
+CREATE UNIQUE INDEX aula_recorrencia_data_hora_unica
+    ON public.aula (id_recorrencia, data_hora)
+    WHERE id_recorrencia IS NOT NULL;
+
+CREATE TABLE Aula_Recorrencia_Material (
+    id_recorrencia INTEGER NOT NULL
+        REFERENCES Aula_Recorrencia(id_recorrencia) ON DELETE CASCADE,
+    id_material INTEGER NOT NULL
+        REFERENCES Material_Didatico(id_material) ON DELETE CASCADE,
+    PRIMARY KEY (id_recorrencia, id_material)
+);
+
+CREATE TABLE Aula_Material (
+    id_aula INTEGER NOT NULL REFERENCES Aula(id_aula) ON DELETE CASCADE,
+    id_material INTEGER NOT NULL
+        REFERENCES Material_Didatico(id_material) ON DELETE CASCADE,
+    PRIMARY KEY (id_aula, id_material)
+);
+
+CREATE TABLE Aula_Anotacao (
+    id_anotacao SERIAL PRIMARY KEY,
+    id_aula INTEGER NOT NULL REFERENCES Aula(id_aula) ON DELETE CASCADE,
+    perfil_usuario VARCHAR(10) NOT NULL
+        CHECK (perfil_usuario IN ('ALUNO', 'PROFESSOR')),
+    id_usuario INTEGER NOT NULL,
+    anotacao TEXT NOT NULL DEFAULT '',
+    criada_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizada_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id_aula, perfil_usuario, id_usuario)
 );
