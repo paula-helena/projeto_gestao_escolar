@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Detalhes da aula - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+    <h2 class="text-primary fw-bold mb-0">Mais sobre a aula</h2>
+    <a href="{{ url_for('listar_aulas') }}" class="btn btn-outline-secondary">Voltar para a agenda</a>
+</div>
+
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <h4>{{ aula[2] or 'Aula sem tema' }}</h4>
+        <p class="mb-1"><strong>Data:</strong> {{ aula[1].strftime('%d/%m/%Y %H:%M') }}</p>
+        <p class="mb-1"><strong>Status:</strong> {{ aula[3] }}</p>
+        {% if aula[5] %}<p class="mb-1"><strong>Aluno:</strong> {{ aula[5] }}</p>{% endif %}
+        <p class="mb-0"><strong>Professor:</strong> {{ aula[4] }}</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-body">
+                <h4 class="card-title">Anotação privada</h4>
+                <p class="text-muted">Somente você pode visualizar esta anotação.</p>
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="anotacao" class="form-label">Suas anotações</label>
+                        <textarea class="form-control" id="anotacao" name="anotacao" rows="5" maxlength="5000">{{ anotacao }}</textarea>
+                    </div>
+
+                    {% if perfil == 'ALUNO' %}
+                        <div class="mb-3">
+                            <label for="nota" class="form-label">Sua autoavaliação (0 a 10)</label>
+                            <input class="form-control" type="number" id="nota" name="nota" min="0" max="10" step="0.01"
+                                   value="{{ aula[6] if aula[6] is not none else '' }}">
+                        </div>
+                    {% else %}
+                        <div class="mb-3">
+                            <label for="nota" class="form-label">Nota do professor (0 a 10)</label>
+                            <input class="form-control" type="number" id="nota" name="nota" min="0" max="10" step="0.01"
+                                   value="{{ aula[7] if aula[7] is not none else '' }}">
+                        </div>
+                    {% endif %}
+
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="revisar" name="revisar" {% if aula[8] %}checked{% endif %}>
+                        <label class="form-check-label" for="revisar">Marcar aula para revisar</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+                <h4 class="card-title">Informações compartilhadas</h4>
+                <p class="mb-2"><strong>Autoavaliação do aluno:</strong> {{ aula[6] if aula[6] is not none else 'Não informada' }}</p>
+                <p class="mb-2"><strong>Nota do professor:</strong> {{ aula[7] if aula[7] is not none else 'Não informada' }}</p>
+                <p class="mb-0"><strong>Revisar:</strong> {{ 'Sim' if aula[8] else 'Não' }}</p>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h4 class="card-title">Materiais da aula</h4>
+                {% for material in materiais %}
+                    <p class="mb-2">
+                        <a href="{{ material[2] }}" target="_blank" rel="noopener noreferrer">{{ material[1] }}</a>
+                    </p>
+                {% else %}
+                    <p class="text-muted mb-0">Nenhum material vinculado a esta aula.</p>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

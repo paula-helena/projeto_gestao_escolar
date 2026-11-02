@@ -1,86 +1,114 @@
 {% extends "base.html" %}
 
-
 {% block title %}Agenda de Aulas - Mr. Dave Idiomas{% endblock %}
 
-
 {% block content %}
-<div class="row mb-4 align-items-center">
-    <div class="col">
-        <h2 class="text-primary fw-bold mb-0">
-            <i class="bi bi-calendar-week me-2"></i> Agenda de Aulas
-        </h2>
-    </div>
-   
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <h2 class="text-primary fw-bold mb-0">Agenda de Aulas</h2>
     {% if session.get('perfil') == 'PROFESSOR' %}
-    <div class="col-auto">
-        <a href="/aulas/nova" class="btn btn-primary fw-bold shadow-sm">
-            <i class="bi bi-plus-lg me-1"></i> Agendar Nova Aula
-        </a>
-    </div>
+        <a href="{{ url_for('nova_aula') }}" class="btn btn-primary fw-bold">Agendar aula</a>
     {% endif %}
 </div>
 
+<form method="GET" action="{{ url_for('listar_aulas') }}" class="card card-body border-0 shadow-sm mb-4">
+    <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-4">
+            <label for="periodo" class="form-label">Período</label>
+            <select class="form-select" id="periodo" name="periodo">
+                <option value="mes" {% if periodo == 'mes' %}selected{% endif %}>Aulas do mês</option>
+                <option value="trimestre" {% if periodo == 'trimestre' %}selected{% endif %}>Aulas do trimestre</option>
+                <option value="semestre" {% if periodo == 'semestre' %}selected{% endif %}>Aulas do semestre</option>
+                <option value="ano" {% if periodo == 'ano' %}selected{% endif %}>Aulas do ano</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-3">
+            <label for="ordenacao" class="form-label">Ordenar por</label>
+            <select class="form-select" id="ordenacao" name="ordenacao">
+                <option value="data" {% if ordenacao == 'data' %}selected{% endif %}>Data</option>
+                <option value="status" {% if ordenacao == 'status' %}selected{% endif %}>Status</option>
+            </select>
+        </div>
+        <div class="col-6 col-md-3">
+            <label for="direcao" class="form-label">Ordem</label>
+            <select class="form-select" id="direcao" name="direcao">
+                <option value="asc" {% if direcao == 'asc' %}selected{% endif %}>Crescente</option>
+                <option value="desc" {% if direcao == 'desc' %}selected{% endif %}>Decrescente</option>
+            </select>
+        </div>
+        <div class="col-12 col-md-2 d-grid">
+            <button type="submit" class="btn btn-outline-primary">Aplicar</button>
+        </div>
+    </div>
+</form>
 
 <div class="card shadow-sm border-0">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="px-3 py-3">Data e hora</th>
+                    <th>Tema</th>
+                    <th>Aluno</th>
+                    <th>Professor</th>
+                    <th>Status</th>
+                    <th>Revisar</th>
+                    <th class="text-end px-3">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for aula in aulas %}
                     <tr>
-                        <th scope="col" class="px-4 py-3">Data e Hora</th>
-                        <th scope="col" class="py-3">Tema</th>
-                        <th scope="col" class="py-3">Aluno</th>
-                        <th scope="col" class="py-3">Professor</th>
-                        <th scope="col" class="py-3">Status</th>
-                        <th scope="col" class="px-4 py-3 text-end">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for aula in aulas %}
-                    <tr>
-                        <!-- aula[1]=data_hora, aula[2]=tema, aula[4]=aluno, aula[5]=professor, aula[3]=status -->
-                        <td class="px-4 py-3 fw-semibold text-secondary">{{ aula[1] }}</td>
-                        <td>{{ aula[2] }}</td>
+                        <td class="px-3">{{ aula[1].strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ aula[2] or 'Sem tema' }}</td>
                         <td>{{ aula[4] }}</td>
                         <td>{{ aula[5] }}</td>
                         <td>
                             {% if aula[3] == 'AGENDADA' %}
-                                <span class="badge bg-primary rounded-pill px-3 py-2">Agendada</span>
-                            {% elif aula[3] == 'REALIZADA' %}
-                                <span class="badge bg-success rounded-pill px-3 py-2">Realizada</span>
+                                <span class="badge bg-primary">Agendada</span>
+                            {% elif aula[3] == 'CONCLUIDA' %}
+                                <span class="badge bg-success">Concluída</span>
                             {% elif aula[3] == 'CANCELADA' %}
-                                <span class="badge bg-danger rounded-pill px-3 py-2">Cancelada</span>
+                                <span class="badge bg-danger">Cancelada</span>
+                            {% elif aula[3] == 'REAGENDADA' %}
+                                <span class="badge bg-warning text-dark">Reposição pendente</span>
                             {% else %}
-                                <span class="badge bg-secondary rounded-pill px-3 py-2">{{ aula[3] }}</span>
+                                <span class="badge bg-secondary">{{ aula[3] }}</span>
                             {% endif %}
                         </td>
-                        <td class="px-4 py-3 text-end">
-                            {% if session.get('perfil') == 'PROFESSOR' %}
-                            <div class="btn-group" role="group">
-                                <a href="/aulas/editar/{{ aula[0] }}" class="btn btn-sm btn-outline-warning" title="Editar">
-                                    Editar
-                                </a>
-                                <form action="/aulas/excluir/{{ aula[0] }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir esta aula?');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-0 rounded-end">Excluir</button>
-                                </form>
+                        <td>
+                            {% if aula[6] %}
+                                <span class="badge bg-warning text-dark">Revisar</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end px-3">
+                            <div class="d-flex justify-content-end flex-wrap gap-1">
+                                <a href="{{ url_for('detalhes_aula', id_aula=aula[0]) }}" class="btn btn-sm btn-outline-primary">Mais</a>
+                                {% if session.get('perfil') == 'PROFESSOR' %}
+                                    <a href="{{ url_for('editar_aula_form', id_aula=aula[0]) }}" class="btn btn-sm btn-outline-secondary">Editar</a>
+                                    {% if aula[3] in ('AGENDADA', 'CONCLUIDA') %}
+                                        <form action="{{ url_for('cancelar_aula', id_aula=aula[0]) }}" method="POST" onsubmit="return confirm('Cancelar esta aula?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar</button>
+                                        </form>
+                                        <form action="{{ url_for('iniciar_reagendamento', id_aula=aula[0]) }}" method="POST" onsubmit="return confirm('Marcar esta aula como reagendada e abrir o formulário de reposição?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning">Cancelar e agendar reposição</button>
+                                        </form>
+                                    {% endif %}
+                                    <form action="{{ url_for('excluir_aula', id_aula=aula[0]) }}" method="POST" onsubmit="return confirm('Excluir esta aula?');">
+                                        <button type="submit" class="btn btn-sm btn-danger">Excluir</button>
+                                    </form>
+                                {% endif %}
                             </div>
-                            {% endif %}
                         </td>
                     </tr>
-                    {% else %}
+                {% else %}
                     <tr>
-                        <td colspan="6" class="text-center py-5 text-muted">
-                            <i class="bi bi-calendar-x fs-1 d-block mb-3 text-light"></i>
-                            <h5 class="fw-bold">Nenhuma aula encontrada</h5>
-                            <p class="mb-0">Ainda não existem aulas cadastradas.</p>
-                        </td>
+                        <td colspan="7" class="text-center py-5 text-muted">Nenhuma aula encontrada neste período.</td>
                     </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}
-

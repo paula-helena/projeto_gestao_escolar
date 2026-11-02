@@ -18,8 +18,11 @@
                     <!-- Campo: Tema da Aula -->
                     <div class="mb-3">
                         <label for="tema" class="form-label fw-semibold">Tema da Aula</label>
-                        <select class="form-select" id="tema" name="tema" required>
-                            <option value="{{ aula[2] }}" selected>{{ aula[2] }} (Atual)</option>
+                        <select class="form-select" id="tema" name="tema">
+                            <option value="">Sem tema</option>
+                            {% if aula[2] %}
+                                <option value="{{ aula[2] }}" selected>{{ aula[2] }} (Atual)</option>
+                            {% endif %}
                             {% for t in temas %}
                                 <option value="{{ t[1] }}">{{ t[1] }}</option>
                             {% endfor %}
@@ -39,8 +42,11 @@
                         <label for="status" class="form-label fw-semibold">Status</label>
                         <select class="form-select" id="status" name="status" required>
                             <option value="AGENDADA" {% if aula[3] == 'AGENDADA' %}selected{% endif %}>Agendada</option>
-                            <option value="REALIZADA" {% if aula[3] == 'REALIZADA' %}selected{% endif %}>Realizada</option>
+                            <option value="CONCLUIDA" {% if aula[3] == 'CONCLUIDA' %}selected{% endif %}>Concluída</option>
                             <option value="CANCELADA" {% if aula[3] == 'CANCELADA' %}selected{% endif %}>Cancelada</option>
+                            {% if aula[3] == 'REAGENDADA' %}
+                                <option value="REAGENDADA" selected>Reposição pendente</option>
+                            {% endif %}
                         </select>
                     </div>
 

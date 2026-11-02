@@ -1,93 +1,139 @@
 {% extends "base.html" %}
 
-{% block title %}Agendar Nova Aula - Mr. Dave Idiomas{% endblock %}
+{% block title %}Agendar Aula - Mr. Dave Idiomas{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center my-4">
-    <div class="col-12 col-md-8 col-lg-6">
+    <div class="col-12 col-lg-8">
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <h3 class="card-title text-center mb-4 text-primary fw-bold">
-                    <i class="bi bi-calendar-plus me-2"></i>Agendar Nova Aula
+                    {% if reposicao %}Agendar Aula de Reposição{% else %}Agendar Aula{% endif %}
                 </h3>
-               
-                <!-- O formulário envia os dados via POST para a rota do app.py -->
-                <form action="/aulas/nova" method="POST">
-                   
-                    <!-- Campo: Selecionar Aluno -->
+
+                {% if reposicao %}
+                    <div class="alert alert-info">
+                        Reposição da aula de {{ reposicao[3] or 'aluno não vinculado' }}.
+                        Esta reposição aceita somente uma data e horário.
+                    </div>
+                {% endif %}
+
+                <form action="{{ url_for('nova_aula') }}" method="POST">
+                    {% if reposicao %}
+                        <input type="hidden" name="reposicao_de" value="{{ reposicao[0] }}">
+                        <input type="hidden" name="modo" value="avulsa">
+                    {% else %}
+                        <fieldset class="mb-4">
+                            <legend class="form-label fw-semibold">Tipo de agendamento</legend>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="modo" id="modoAvulsa" value="avulsa" checked>
+                                <label class="form-check-label" for="modoAvulsa">Uma aula</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="modo" id="modoRecorrente" value="recorrente">
+                                <label class="form-check-label" for="modoRecorrente">Aula recorrente semanal</label>
+                            </div>
+                        </fieldset>
+                    {% endif %}
+
                     <div class="mb-3">
                         <label for="id_aluno" class="form-label fw-semibold">Aluno</label>
-                        <select class="form-select" id="id_aluno" name="id_aluno" required>
-                            <option value="" selected disabled>Selecione um aluno...</option>
-                            {% for aluno in alunos %}
-                                <option value="{{ aluno[0] }}">{{ aluno[1] }}</option>
-                            {% endfor %}
-                        </select>
+                        {% if reposicao and reposicao[2] %}
+                            <input type="hidden" name="id_aluno" value="{{ reposicao[2] }}">
+                            <input class="form-control" value="{{ reposicao[3] }}" disabled>
+                        {% else %}
+                            <select class="form-select" id="id_aluno" name="id_aluno" required>
+                                <option value="" disabled {% if not reposicao %}selected{% endif %}>Selecione um aluno...</option>
+                                {% for aluno in alunos %}
+                                    <option value="{{ aluno[0] }}" {% if reposicao and reposicao[2] == aluno[0] %}selected{% endif %}>
+                                        {{ aluno[1] }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        {% endif %}
                     </div>
 
-                    <!-- Campo: Selecionar Tema da Lista Cadastrada + Botão de Atalho para Novo -->
                     <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label for="tema" class="form-label fw-semibold mb-0">Tema da Aula</label>
-                            <!-- Botão que abre o modal de novo tema de aula -->
-                            <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none fw-bold text-primary" data-bs-toggle="modal" data-bs-target="#modalNovoTema">
-                                <i class="bi bi-plus-circle me-1"></i>Novo Tema
-                            </button>
-                        </div>
-                        <select class="form-select" id="tema" name="tema" required>
-                            <option value="" selected disabled>Selecione um tema cadastrado...</option>
-                            {% for t in temas %}
-                                <!-- Se a sua coluna 'tema' na tabela Aula espera o título do tema (VARCHAR): -->
-                                <option value="{{ t[1] }}">{{ t[1] }}</option>
+                        <label for="tema" class="form-label fw-semibold">Tema da aula (opcional)</label>
+                        <select class="form-select" id="tema" name="tema">
+                            <option value="">Sem tema</option>
+                            {% for tema in temas %}
+                                <option value="{{ tema[1] }}" {% if reposicao and reposicao[1] == tema[1] %}selected{% endif %}>
+                                    {{ tema[1] }}
+                                </option>
                             {% endfor %}
                         </select>
                     </div>
 
-                    <!-- Campo: Data e Hora -->
-                    <div class="mb-4">
-                        <label for="data_hora" class="form-label fw-semibold">Data e Horário</label>
+                    <div class="mb-3">
+                        <label for="data_hora" class="form-label fw-semibold">
+                            {% if reposicao %}Data e horário da reposição{% else %}Primeira data e horário{% endif %}
+                        </label>
                         <input type="datetime-local" class="form-control" id="data_hora" name="data_hora" required>
                     </div>
 
-                    <!-- Botões de Ação -->
-                    <div class="d-grid gap-2 mt-4">
-                        <button type="submit" class="btn btn-primary btn-lg fw-bold">
-                            <i class="bi bi-check-circle me-1"></i> Agendar Aula
-                        </button>
-                        <a href="/aulas" class="btn btn-outline-secondary">Cancelar e Voltar</a>
-                    </div>
+                    {% if not reposicao %}
+                        <section id="opcoesRecorrencia" class="border rounded p-3 mb-4" hidden>
+                            <h5 class="fw-semibold">Repetir toda semana</h5>
+                            <p class="text-muted small">Os dias selecionados serão agendados no horário informado acima.</p>
+                            <div class="d-flex flex-wrap gap-3 mb-3">
+                                {% for dia, nome in [(1, 'Segunda'), (2, 'Terça'), (3, 'Quarta'), (4, 'Quinta'), (5, 'Sexta'), (6, 'Sábado'), (7, 'Domingo')] %}
+                                    <div class="form-check">
+                                        <input class="form-check-input dia-semana" type="checkbox" name="dias_semana" id="dia{{ dia }}" value="{{ dia }}">
+                                        <label class="form-check-label" for="dia{{ dia }}">{{ nome }}</label>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                            <label for="duracao" class="form-label fw-semibold">Por quanto tempo?</label>
+                            <select class="form-select" id="duracao" name="duracao">
+                                <option value="mes">Um mês</option>
+                                <option value="trimestre">Um trimestre</option>
+                                <option value="semestre">Um semestre</option>
+                                <option value="ano">Um ano</option>
+                                <option value="sempre">Para sempre</option>
+                            </select>
+                            <div class="form-text">A opção “Para sempre” cria aulas futuras progressivamente, conforme a agenda é consultada.</div>
+                        </section>
+                    {% endif %}
 
+                    <fieldset class="mb-4">
+                        <legend class="form-label fw-semibold">Materiais para esta aula (opcional)</legend>
+                        {% for material in materiais %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="materiais" id="material{{ material[0] }}" value="{{ material[0] }}">
+                                <label class="form-check-label" for="material{{ material[0] }}">{{ material[1] }}</label>
+                            </div>
+                        {% else %}
+                            <p class="text-muted small mb-0">Você ainda não cadastrou materiais.</p>
+                        {% endfor %}
+                    </fieldset>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg fw-bold">Salvar agendamento</button>
+                        <a href="{{ url_for('listar_aulas') }}" class="btn btn-outline-secondary">Voltar para a agenda</a>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Modal do Bootstrap para Cadastrar Novo Tema de Aula de forma rápida -->
-<div class="modal fade" id="modalNovoTema" tabindex="-1" aria-labelledby="modalNovoTemaLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title fw-bold" id="modalNovoTemaLabel">
-                    <i class="bi bi-journal-plus me-2"></i>Cadastrar Novo Tema
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <!-- O formulário do modal envia o novo tema para a rota criada -->
-            <form action="/temas/novo" method="POST">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="nome_tema" class="form-label fw-semibold">Nome do Tema de Aula</label>
-                        <input type="text" class="form-control" id="nome_tema" name="nome_tema" placeholder="Ex: Present Perfect, Conversação, Business English" required>
-                        <div class="form-text">Esse tema ficará disponível para a seleção no agendamento.</div>
-                    </div>
-                </div>
-                <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary fw-bold">Salvar Tema</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+{% if not reposicao %}
+<script>
+    const radiosModo = document.querySelectorAll('input[name="modo"]');
+    const opcoesRecorrencia = document.getElementById('opcoesRecorrencia');
+    const camposRecorrencia = opcoesRecorrencia.querySelectorAll('input, select');
+
+    function atualizarModoAgendamento() {
+        const recorrente = document.getElementById('modoRecorrente').checked;
+        opcoesRecorrencia.hidden = !recorrente;
+        camposRecorrencia.forEach(campo => {
+            campo.disabled = !recorrente;
+        });
+    }
+
+    radiosModo.forEach(radio => radio.addEventListener('change', atualizarModoAgendamento));
+    atualizarModoAgendamento();
+</script>
+{% endif %}
 {% endblock %}
