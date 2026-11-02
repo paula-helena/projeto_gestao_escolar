@@ -99,6 +99,19 @@
     </nav>
 
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container mt-3" role="status" aria-live="polite">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show mb-2" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
     <!-- ÁREA PRINCIPAL ONDE AS OUTRAS PÁGINAS SÃO CARREGADAS -->
     <main class="container my-4 flex-grow-1">
        
@@ -144,4 +157,3 @@
 </script>
 </body>
 </html>
-

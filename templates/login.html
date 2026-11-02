@@ -12,37 +12,33 @@
                 <!-- Formulário enviando via POST para a rota /login -->
                 <form action="/login" method="POST">
                     
-                    <!-- Campo E-mail -->
+                    <!-- Campo: Tipo de Perfil -->
                     <div class="mb-3">
-                        <label for="email" class="form-label">E-mail</label>
+                        <label for="perfil" class="form-label fw-semibold">Perfil</label>
+                        <select class="form-select" id="perfil" name="perfil" required>
+                            <option value="ALUNO" selected>Aluno</option>
+                            <option value="PROFESSOR">Professor</option>
+                        </select>
+                    </div>
+
+                    <!-- Campo: E-mail -->
+                    <div class="mb-3">
+                        <label for="email" class="form-label fw-semibold">E-mail</label>
                         <input type="email" class="form-control" id="email" name="email" placeholder="seuemail@exemplo.com" required autocomplete="email">
                     </div>
 
-                    <!-- Campo Senha -->
+                    <!-- Campo: Senha -->
                     <div class="mb-3">
-                        <label for="senha" class="form-label">Senha</label>
+                        <label for="senha" class="form-label fw-semibold">Senha</label>
                         <input type="password" class="form-control" id="senha" name="senha" placeholder="Sua senha" required autocomplete="current-password">
                     </div>
 
                     <!-- Botão de Enviar -->
                     <div class="d-grid mt-4">
-                        <button type="submit" class="btn btn-primary btn-lg">Entrar</button>
+                        <button type="submit" class="btn btn-primary btn-lg fw-bold">Entrar</button>
                     </div>
 
                 </form>
-                <!-- Bloco de mensagens flash -->
-{% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div class="alert-container mt-3">
-      {% for category, message in messages %}
-        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-          {{ message }}
-          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-{% endwith %}
             </div>
         </div>
     </div>
