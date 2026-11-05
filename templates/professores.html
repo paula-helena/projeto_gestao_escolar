@@ -26,15 +26,12 @@
                     </div>
 
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="senha" class="form-label fw-semibold">Senha</label>
-                            <input type="password" class="form-control" id="senha" name="senha" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="disciplina" class="form-label fw-semibold">Disciplina</label>
-                            <input type="text" class="form-control" id="disciplina" name="disciplina" required placeholder="Ex: Inglês Avançado">
-                        </div>
+                    <div class="alert alert-info" role="note">
+                        A senha inicial é <strong>mrdave</strong>. O professor poderá criar uma senha pessoal pela opção “Esqueci minha senha”.
+                    </div>
+                    <div class="mb-3">
+                        <label for="disciplina" class="form-label fw-semibold">Disciplina</label>
+                        <input type="text" class="form-control" id="disciplina" name="disciplina" required placeholder="Ex: Inglês Avançado">
                     </div>
 
 
@@ -176,7 +173,6 @@
         const pacote = {
             nome: document.getElementById('nome').value,
             email: document.getElementById('email').value,
-            senha: document.getElementById('senha').value,
             disciplina: document.getElementById('disciplina').value,
             cep: document.getElementById('cep').value.replace(/\D/g, ''),
             logradouro: document.getElementById('logradouro').value,
@@ -198,9 +194,8 @@
 
             const resultado = await resposta.json();
 
-
             if (resposta.status === 201) {
-                alert("Professor cadastrado com sucesso!");
+                alert("Professor cadastrado com sucesso! A senha inicial é mrdave. Ele poderá criar uma senha pessoal pela opção “Esqueci minha senha”.");
                 document.getElementById('formCadastro').reset();
                
                 // Desbloqueia os campos de endereço caso queira cadastrar outro em seguida
@@ -220,4 +215,3 @@
 
 
 {% endblock %}
-

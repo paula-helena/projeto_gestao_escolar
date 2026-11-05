@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Esqueci minha senha - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-6 col-lg-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h3 class="card-title text-center mb-3 text-primary fw-bold">Esqueci minha senha</h3>
+                <p class="text-muted">Informe seu perfil e e-mail cadastrado para receber um link de redefinição.</p>
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="perfil" class="form-label">Perfil</label>
+                        <select class="form-select" id="perfil" name="perfil" required>
+                            <option value="ALUNO">Aluno</option>
+                            <option value="PROFESSOR">Professor</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="email" class="form-label">E-mail cadastrado</label>
+                        <input type="email" class="form-control" id="email" name="email" required autocomplete="email">
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">Enviar link de redefinição</button>
+                    </div>
+                </form>
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('login') }}">Voltar ao login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

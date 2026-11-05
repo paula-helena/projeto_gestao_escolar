@@ -1,7 +1,12 @@
 import os
 import calendar
+import hashlib
+import secrets
+import smtplib
+import ssl
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from email.message import EmailMessage
 from flask import (
     Flask, request, jsonify, render_template, redirect, url_for, session, flash,
     get_flashed_messages,
@@ -20,6 +25,59 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'chave_secreta_para_desenvolvimento')
 bcrypt = Bcrypt(app)
+
+SENHA_PADRAO = 'mrdave'
+app.config.update(
+    SMTP_SERVER=os.getenv('SMTP_SERVER'),
+    SMTP_PORT=int(os.getenv('SMTP_PORT', '587')),
+    SMTP_USERNAME=os.getenv('SMTP_USERNAME'),
+    SMTP_PASSWORD=os.getenv('SMTP_PASSWORD'),
+    SMTP_USE_TLS=os.getenv('SMTP_USE_TLS', 'true').lower() == 'true',
+    SMTP_USE_SSL=os.getenv('SMTP_USE_SSL', 'false').lower() == 'true',
+    SMTP_FROM_EMAIL=os.getenv('SMTP_FROM_EMAIL'),
+    PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL'),
+)
+
+
+def enviar_email_redefinicao(destinatario, link):
+    servidor_smtp = app.config['SMTP_SERVER']
+    remetente = app.config['SMTP_FROM_EMAIL']
+    if not servidor_smtp or not remetente or not app.config['PUBLIC_BASE_URL']:
+        raise RuntimeError(
+            'SMTP_SERVER, SMTP_FROM_EMAIL e PUBLIC_BASE_URL precisam estar configurados.'
+        )
+    if app.config['SMTP_USE_TLS'] and app.config['SMTP_USE_SSL']:
+        raise RuntimeError('SMTP_USE_TLS e SMTP_USE_SSL não podem estar ativos juntos.')
+    if bool(app.config['SMTP_USERNAME']) != bool(app.config['SMTP_PASSWORD']):
+        raise RuntimeError('SMTP_USERNAME e SMTP_PASSWORD precisam ser configurados juntos.')
+
+    mensagem = EmailMessage()
+    mensagem['Subject'] = 'Redefinição de senha - Mr. Dave Idiomas'
+    mensagem['From'] = remetente
+    mensagem['To'] = destinatario
+    mensagem.set_content(
+        'Recebemos uma solicitação para redefinir sua senha.\n\n'
+        f'Acesse este link em até 1 hora para escolher uma nova senha:\n{link}\n\n'
+        'Se você não solicitou a redefinição, ignore esta mensagem.'
+    )
+
+    contexto_ssl = ssl.create_default_context()
+    if app.config['SMTP_USE_SSL']:
+        with smtplib.SMTP_SSL(
+            servidor_smtp, app.config['SMTP_PORT'], context=contexto_ssl, timeout=15
+        ) as servidor:
+            if app.config['SMTP_USERNAME']:
+                servidor.login(app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'])
+            servidor.send_message(mensagem)
+    else:
+        with smtplib.SMTP(
+            servidor_smtp, app.config['SMTP_PORT'], timeout=15
+        ) as servidor:
+            if app.config['SMTP_USE_TLS']:
+                servidor.starttls(context=contexto_ssl)
+            if app.config['SMTP_USERNAME']:
+                servidor.login(app.config['SMTP_USERNAME'], app.config['SMTP_PASSWORD'])
+            servidor.send_message(mensagem)
 
 DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:admin123@localhost:5432/gestao_escolar')
 
@@ -305,6 +363,197 @@ def logout():
     session.clear()
     flash('Você saiu do sistema com sucesso.', 'info')
     return redirect(url_for('login'))
+
+
+@app.route('/esqueci-senha', methods=['GET', 'POST'])
+def esqueci_senha():
+    if request.method == 'POST':
+        perfil = request.form.get('perfil')
+        email = (request.form.get('email') or '').strip()
+        perfis = {
+            'ALUNO': ('public.aluno', 'id_aluno'),
+            'PROFESSOR': ('public.professor', 'id_professor'),
+        }
+
+        if perfil not in perfis or not email:
+            flash('Informe o perfil e o e-mail cadastrados.', 'warning')
+            return render_template('esqueci_senha.html')
+
+        if (
+            not app.config['SMTP_SERVER']
+            or not app.config['SMTP_FROM_EMAIL']
+            or not app.config['PUBLIC_BASE_URL']
+        ):
+            app.logger.error(
+                'Recuperação de senha indisponível: SMTP_SERVER, SMTP_FROM_EMAIL '
+                'ou PUBLIC_BASE_URL não configurado.'
+            )
+            flash(
+                'A recuperação de senha está temporariamente indisponível. '
+                'Tente novamente mais tarde.',
+                'danger',
+            )
+            return render_template('esqueci_senha.html')
+
+        tabela, id_coluna = perfis[perfil]
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        usuario = None
+        conexao = None
+        cursor = None
+        try:
+            conexao = psycopg2.connect(DATABASE_URL)
+            cursor = conexao.cursor()
+            cursor.execute(
+                f'SELECT {id_coluna} FROM {tabela} WHERE email = %s',
+                (email,),
+            )
+            registro = cursor.fetchone()
+            if registro:
+                usuario = registro[0]
+                cursor.execute("""
+                    DELETE FROM public.redefinicao_senha
+                    WHERE expira_em <= CURRENT_TIMESTAMP
+                """)
+                cursor.execute("""
+                    INSERT INTO public.redefinicao_senha
+                        (perfil, id_usuario, token_hash, expira_em)
+                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP + INTERVAL '1 hour')
+                """, (perfil, usuario, token_hash))
+            conexao.commit()
+        except psycopg2.Error:
+            if conexao is not None:
+                conexao.rollback()
+            app.logger.exception('Erro ao criar solicitação de redefinição de senha.')
+            flash(
+                'Não foi possível processar a solicitação. Tente novamente mais tarde.',
+                'danger',
+            )
+            return render_template('esqueci_senha.html')
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if conexao is not None:
+                conexao.close()
+
+        if usuario is not None:
+            base_url = app.config['PUBLIC_BASE_URL'].rstrip('/')
+            link = f'{base_url}{url_for("redefinir_senha", token=token)}'
+            try:
+                enviar_email_redefinicao(email, link)
+            except (OSError, RuntimeError, ValueError, smtplib.SMTPException):
+                app.logger.exception('Erro ao enviar e-mail de redefinição de senha.')
+                conexao = None
+                cursor = None
+                try:
+                    conexao = psycopg2.connect(DATABASE_URL)
+                    cursor = conexao.cursor()
+                    cursor.execute(
+                        'DELETE FROM public.redefinicao_senha WHERE token_hash = %s',
+                        (token_hash,),
+                    )
+                    conexao.commit()
+                except psycopg2.Error:
+                    if conexao is not None:
+                        conexao.rollback()
+                    app.logger.exception(
+                        'Erro ao invalidar token cujo e-mail não foi enviado.'
+                    )
+                finally:
+                    if cursor is not None:
+                        cursor.close()
+                    if conexao is not None:
+                        conexao.close()
+                flash(
+                    'Se o perfil e o e-mail corresponderem a uma conta, '
+                    'você receberá um link para redefinir a senha.',
+                    'info',
+                )
+                return render_template('esqueci_senha.html')
+
+        flash(
+            'Se o perfil e o e-mail corresponderem a uma conta, '
+            'você receberá um link para redefinir a senha.',
+            'info',
+        )
+        return render_template('esqueci_senha.html')
+
+    return render_template('esqueci_senha.html')
+
+
+@app.route('/redefinir-senha/<token>', methods=['GET', 'POST'])
+def redefinir_senha(token):
+    if request.method == 'POST':
+        senha = request.form.get('senha') or ''
+        confirmacao = request.form.get('confirmacao') or ''
+        if len(senha) < 8:
+            flash('A nova senha precisa ter pelo menos 8 caracteres.', 'warning')
+            return render_template('redefinir_senha.html', token=token)
+        if senha != confirmacao:
+            flash('As senhas informadas não coincidem.', 'warning')
+            return render_template('redefinir_senha.html', token=token)
+
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        conexao = None
+        cursor = None
+        try:
+            conexao = psycopg2.connect(DATABASE_URL)
+            cursor = conexao.cursor()
+            cursor.execute("""
+                SELECT perfil, id_usuario
+                FROM public.redefinicao_senha
+                WHERE token_hash = %s AND expira_em > CURRENT_TIMESTAMP
+                FOR UPDATE
+            """, (token_hash,))
+            registro = cursor.fetchone()
+            if not registro:
+                conexao.rollback()
+                flash('Este link é inválido ou expirou. Solicite uma nova redefinição.', 'danger')
+                return redirect(url_for('esqueci_senha'))
+
+            perfil, id_usuario = registro
+            tabelas = {
+                'ALUNO': ('public.aluno', 'id_aluno'),
+                'PROFESSOR': ('public.professor', 'id_professor'),
+            }
+            if perfil not in tabelas:
+                conexao.rollback()
+                app.logger.error('Token de redefinição contém perfil inválido.')
+                flash('Não foi possível redefinir a senha. Solicite um novo link.', 'danger')
+                return redirect(url_for('esqueci_senha'))
+
+            tabela, id_coluna = tabelas[perfil]
+            senha_hash = bcrypt.generate_password_hash(senha).decode('utf-8')
+            cursor.execute(
+                f'UPDATE {tabela} SET senha = %s WHERE {id_coluna} = %s',
+                (senha_hash, id_usuario),
+            )
+            if cursor.rowcount != 1:
+                conexao.rollback()
+                flash('Este link é inválido ou expirou. Solicite uma nova redefinição.', 'danger')
+                return redirect(url_for('esqueci_senha'))
+            cursor.execute("""
+                DELETE FROM public.redefinicao_senha
+                WHERE perfil = %s AND id_usuario = %s
+            """, (perfil, id_usuario))
+            conexao.commit()
+        except psycopg2.Error:
+            if conexao is not None:
+                conexao.rollback()
+            app.logger.exception('Erro ao redefinir senha.')
+            flash('Não foi possível redefinir a senha. Tente novamente mais tarde.', 'danger')
+            return render_template('redefinir_senha.html', token=token)
+        finally:
+            if cursor is not None:
+                cursor.close()
+            if conexao is not None:
+                conexao.close()
+
+        session.clear()
+        flash('Sua senha foi alterada. Entre com sua nova senha.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('redefinir_senha.html', token=token)
 
 
 # ==================================================
@@ -905,7 +1154,7 @@ def pagina_cadastro():
 @app.route('/api/alunos', methods=['POST'])
 def cadastrar_aluno():
     dados = request.json
-    senha_hash = bcrypt.generate_password_hash(dados['senha']).decode('utf-8')
+    senha_hash = bcrypt.generate_password_hash(SENHA_PADRAO).decode('utf-8')
    
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
@@ -1032,7 +1281,7 @@ def pagina_cadastro_professor():
 @login_required('PROFESSOR')
 def cadastrar_professor():
     dados = request.json
-    senha_hash = bcrypt.generate_password_hash(dados['senha']).decode('utf-8')
+    senha_hash = bcrypt.generate_password_hash(SENHA_PADRAO).decode('utf-8')
    
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()

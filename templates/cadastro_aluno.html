@@ -21,9 +21,8 @@
                         <input type="email" class="form-control" id="email" required placeholder="seu@email.com">
                     </div>
 
-                    <div class="mb-3">
-                        <label for="senha" class="form-label">Senha</label>
-                        <input type="password" class="form-control" id="senha" required placeholder="Crie uma senha">
+                    <div class="alert alert-info" role="note">
+                        A senha inicial é <strong>mrdave</strong>. Depois, use “Esqueci minha senha” na tela de login para criar uma senha pessoal.
                     </div>
 
                     <hr class="my-4">
@@ -73,9 +72,11 @@
 <button type="submit" class="btn btn-primary btn-lg">Finalizar Cadastro</button>
                     </div>
                     
-                    <div class="text-center mt-3">
-                        <p class="mb-0">Já tem uma conta? <a href="/login" class="text-decoration-none fw-bold">Faça Login</a></p>
-                    </div>
+                    {% if not session.get('user_id') %}
+                        <div class="text-center mt-3">
+                            <p class="mb-0">Já tem uma conta? <a href="{{ url_for('login') }}" class="text-decoration-none fw-bold">Faça Login</a></p>
+                        </div>
+                    {% endif %}
 
                 </form>
             </div>
@@ -117,7 +118,6 @@
         const dados = {
             nome: document.getElementById('nome').value,
             email: document.getElementById('email').value,
-            senha: document.getElementById('senha').value,
             cep: document.getElementById('cep').value,
             logradouro: document.getElementById('logradouro').value,
             bairro: document.getElementById('bairro').value,
@@ -135,7 +135,7 @@
         })
         .then(response => {
             if (response.ok) {
-                alert('Cadastro realizado com sucesso! Pode agora fazer login.');
+                alert('Cadastro realizado com sucesso! A senha inicial é mrdave. Depois de entrar, use “Esqueci minha senha” para criar uma senha pessoal.');
                 window.location.href = '/login'; // Redireciona para o login
             } else {
                 response.json().then(data => alert('Erro: ' + data.erro));
