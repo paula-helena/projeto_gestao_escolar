@@ -30,12 +30,14 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertIn('href="/home-professor">', pagina)
         self.assertIn('Novo Cadastro', pagina)
         self.assertIn('aria-label="Abrir opções de navegação"', pagina)
-        self.assertIn('Gerenciar alunos', pagina)
-        self.assertIn('Gerenciar professores', pagina)
-        self.assertIn('Mudar senha', pagina)
-        self.assertIn('Agendar nova aula', pagina)
-        self.assertIn('Adicionar material', pagina)
+        self.assertIn('Gerenciar Alunos', pagina)
+        self.assertIn('Gerenciar Professores', pagina)
+        self.assertIn('Mudar Senha', pagina)
+        self.assertIn('Agendar Nova Aula', pagina)
+        self.assertIn('Adicionar Material', pagina)
         self.assertIn('Calendário de Aulas', pagina)
+        self.assertNotIn('Agenda de aulas', pagina)
+        self.assertNotIn('href="/aulas">', pagina)
 
     def test_professor_comum_nao_ve_novo_cadastro(self):
         self.autenticar('PROFESSOR')
@@ -43,6 +45,8 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertNotIn('Novo Cadastro', resposta.get_data(as_text=True))
         self.assertIn('Calendário de Aulas', resposta.get_data(as_text=True))
+        self.assertNotIn('Minhas aulas', resposta.get_data(as_text=True))
+        self.assertNotIn('href="/aulas">', resposta.get_data(as_text=True))
 
     def test_barra_e_home_do_aluno_mostram_apenas_rotas_de_aluno(self):
         self.autenticar('ALUNO')
@@ -52,12 +56,13 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertEqual(resposta.status_code, 200)
         self.assertIn('href="/home-aluno">', pagina)
         self.assertNotIn('Novo Cadastro', pagina)
-        self.assertIn('Minhas aulas', pagina)
-        self.assertIn('Materiais das minhas aulas', pagina)
         self.assertIn('Calendário de Aulas', pagina)
-        self.assertIn('Mudar senha', pagina)
-        self.assertNotIn('Gerenciar alunos', pagina)
-        self.assertNotIn('Agendar nova aula', pagina)
+        self.assertIn('Materiais Das Minhas Aulas', pagina)
+        self.assertIn('Mudar Senha', pagina)
+        self.assertNotIn('Gerenciar Alunos', pagina)
+        self.assertNotIn('Agendar Nova Aula', pagina)
+        self.assertNotIn('Minhas aulas', pagina)
+        self.assertNotIn('href="/aulas">', pagina)
 
     @patch('app.psycopg2.connect')
     def test_aluno_visualiza_somente_materiais_vinculados_as_suas_aulas(self, conectar):

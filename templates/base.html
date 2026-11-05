@@ -45,30 +45,28 @@
                             <ul class="dropdown-menu dropdown-menu-end navigation-menu">
                                 {% if session.get('perfil') == 'PROFESSOR' %}
                                     <li><h6 class="dropdown-header">Aulas</h6></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('listar_aulas') }}">Agenda de aulas</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('calendario_aulas') }}">Calendário de Aulas</a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('nova_aula') }}">Agendar nova aula</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('nova_aula') }}">Agendar Nova Aula</a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><h6 class="dropdown-header">Materiais</h6></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('listar_materiais') }}">Materiais didáticos</a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('novo_material') }}">Adicionar material</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('listar_materiais') }}">Materiais Didáticos</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('novo_material') }}">Adicionar Material</a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><h6 class="dropdown-header">Cadastros</h6></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('gerenciar_alunos') }}">Gerenciar alunos</a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('gerenciar_professores') }}">Gerenciar professores</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('gerenciar_alunos') }}">Gerenciar Alunos</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('gerenciar_professores') }}">Gerenciar Professores</a></li>
                                     {% if session.get('is_admin') %}
-                                        <li><a class="dropdown-item" href="{{ url_for('pagina_cadastro') }}">Cadastrar aluno ou professor</a></li>
+                                        <li><a class="dropdown-item" href="{{ url_for('pagina_cadastro') }}">Cadastrar Aluno ou Professor</a></li>
                                     {% endif %}
                                 {% else %}
-                                    <li><a class="dropdown-item" href="{{ url_for('listar_aulas') }}">Minhas aulas</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('calendario_aulas') }}">Calendário de Aulas</a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('listar_materiais') }}">Materiais das minhas aulas</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('listar_materiais') }}">Materiais Das Minhas Aulas</a></li>
                                 {% endif %}
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{{ url_for('alterar_senha') }}">Mudar senha</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('alterar_senha') }}">Mudar Senha</a></li>
                                 <li>
                                     <button class="dropdown-item" type="button" id="toggle-contraste">
-                                        Alternar contraste
+                                        Alternar Contraste
                                     </button>
                                 </li>
                                 <li><a class="dropdown-item" href="{{ url_for('logout') }}">Sair</a></li>

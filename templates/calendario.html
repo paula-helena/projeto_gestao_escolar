@@ -51,6 +51,31 @@
                                     {% if aula[6] %}
                                         <a href="{{ aula[6] }}" target="_blank" rel="noopener noreferrer">Abrir Meet</a>
                                     {% endif %}
+                                    <div class="d-flex flex-wrap gap-1 mt-2">
+                                        <a class="btn btn-sm btn-outline-primary"
+                                           href="{{ url_for('detalhes_aula', id_aula=aula[0]) }}">Detalhes Da Aula</a>
+                                        {% if perfil == 'PROFESSOR' %}
+                                            <a class="btn btn-sm btn-outline-secondary"
+                                               href="{{ url_for('editar_aula_form', id_aula=aula[0]) }}">Editar Aula</a>
+                                            {% if aula[3] in ('AGENDADA', 'CONCLUIDA') %}
+                                                <form action="{{ url_for('cancelar_aula', id_aula=aula[0]) }}"
+                                                      method="POST"
+                                                      onsubmit="return confirm('Cancelar esta aula?');">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar Aula</button>
+                                                </form>
+                                                <form action="{{ url_for('iniciar_reagendamento', id_aula=aula[0]) }}"
+                                                      method="POST"
+                                                      onsubmit="return confirm('Cancelar esta aula e agendar uma reposição?');">
+                                                    <button type="submit" class="btn btn-sm btn-outline-warning">Agendar Reposição</button>
+                                                </form>
+                                            {% endif %}
+                                            <form action="{{ url_for('excluir_aula', id_aula=aula[0]) }}"
+                                                  method="POST"
+                                                  onsubmit="return confirm('Excluir esta aula?');">
+                                                <button type="submit" class="btn btn-sm btn-danger">Excluir Aula</button>
+                                            </form>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             {% endfor %}
                         </td>
