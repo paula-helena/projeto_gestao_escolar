@@ -57,4 +57,12 @@ O link opcional do Google Meet pode ser informado ao agendar ou editar uma aula.
 
 ## Navegação e senhas
 
-O menu superior oferece a Home, o acesso a novos cadastros para professores e o menu de navegação. As opções são filtradas pelo perfil. A Home do aluno mostra somente a agenda e os materiais vinculados às aulas dele. Alunos e professores podem alterar a senha depois de entrar, pelo item “Mudar senha” no menu; é necessário informar a senha atual e definir uma nova com pelo menos oito caracteres.
+O menu superior oferece a Home e o menu de navegação. As opções são filtradas pelo perfil. A Home do aluno mostra somente a agenda, o calendário de aulas e os materiais vinculados às aulas dele. Alunos e professores podem alterar a senha depois de entrar, pelo item “Mudar senha” no menu; é necessário informar a senha atual e definir uma nova com pelo menos oito caracteres.
+
+Somente professores administradores podem cadastrar, editar ou excluir alunos e professores. Todos os professores podem consultar as listas de alunos e professores. Para adicionar a permissão administrativa inicial e tornar `phfe1997@gmail.com` administrador no Neon, aplique uma vez:
+
+```powershell
+psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f migration_administrador.sql
+```
+
+O administrador pode conceder ou não essa permissão ao cadastrar outros professores e atribuir aulas a outro professor. Professores comuns têm suas aulas vinculadas automaticamente à própria conta. O calendário permite alternar entre as visualizações semanal e mensal.

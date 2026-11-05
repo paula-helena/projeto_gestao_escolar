@@ -105,7 +105,11 @@ class FakeCursor:
         self.result_all = []
         sql = ' '.join(query.split())
 
-        if 'SELECT id_aluno, nome, email FROM public.aluno' in sql:
+        if 'SELECT id_professor, nome, email' in sql:
+            self.result_all = [(4, 'Professor Teste', 'professor@example.com')]
+        elif 'SELECT 1 FROM public.professor' in sql:
+            self.result_one = (1,)
+        elif 'SELECT id_aluno, nome, email FROM public.aluno' in sql:
             self.result_all = [(7, 'Aluno Teste', 'aluno@example.com')]
         elif 'SELECT id_material, titulo' in sql:
             self.result_all = []
@@ -208,11 +212,22 @@ class AgendaRouteTests(unittest.TestCase):
         self.assertLess(pagina.index('value="recorrente"'), pagina.index('value="reposicao"'))
         self.assertLess(pagina.index('value="reposicao"'), pagina.index('value="experimental"'))
 
+    def test_calendario_semanal_e_mensal_esta_disponivel(self):
+        conexao = FakeConnection()
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            semana = self.client.get('/calendario?visualizacao=semana&data=2026-11-02')
+            mes = self.client.get('/calendario?visualizacao=mes&data=2026-11-02')
+        self.assertEqual(semana.status_code, 200)
+        self.assertIn('02/11/2026 – 08/11/2026', semana.get_data(as_text=True))
+        self.assertEqual(mes.status_code, 200)
+        self.assertIn('Novembro 2026', mes.get_data(as_text=True))
+
     def test_aula_experimental_sem_tema_pode_ser_agendada(self):
         conexao = FakeConnection()
         with patch.object(app.psycopg2, 'connect', return_value=conexao):
             resposta = self.client.post('/aulas/nova', data={
                 'modo': 'experimental',
+                'id_professor': '999',
                 'id_aluno': '7',
                 'tema': '',
                 'link_aula': 'https://meet.google.com/abc-defg-hij',
@@ -225,9 +240,44 @@ class AgendaRouteTests(unittest.TestCase):
             if 'INSERT INTO public.aula (' in query
         )
         self.assertIsNone(insercao[1][1])
+        self.assertEqual(insercao[1][0], 4)
         self.assertEqual(insercao[1][-2:], (
             'EXPERIMENTAL', 'https://meet.google.com/abc-defg-hij'
         ))
+
+    def test_administrador_pode_atribuir_aula_a_outro_professor(self):
+        conexao = FakeConnection()
+        with self.client.session_transaction() as state:
+            state['is_admin'] = True
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.post('/aulas/nova', data={
+                'modo': 'experimental',
+                'id_professor': '9',
+                'id_aluno': '7',
+                'data_hora': '2026-11-03T20:00',
+            })
+        self.assertEqual(resposta.status_code, 302)
+        insercao = next(
+            parametros for query, parametros in conexao.fake_cursor.queries
+            if 'INSERT INTO public.aula (' in query
+        )
+        self.assertEqual(insercao[0], 9)
+
+    def test_professor_comum_nao_pode_escolher_outro_responsavel(self):
+        conexao = FakeConnection()
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.post('/aulas/nova', data={
+                'modo': 'experimental',
+                'id_professor': '999',
+                'id_aluno': '7',
+                'data_hora': '2026-11-03T20:00',
+            })
+        self.assertEqual(resposta.status_code, 302)
+        insercao = next(
+            parametros for query, parametros in conexao.fake_cursor.queries
+            if 'INSERT INTO public.aula (' in query
+        )
+        self.assertEqual(insercao[0], 4)
 
     def test_link_que_nao_e_google_meet_e_recusado(self):
         conexao = FakeConnection()

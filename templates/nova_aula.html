@@ -38,16 +38,34 @@
                         </div>
                     </fieldset>
 
+                    <div class="mb-3">
+                        <label for="id_professor" class="form-label fw-semibold">Professor responsável</label>
+                        {% if is_admin %}
+                            <select class="form-select" id="id_professor" name="id_professor" required>
+                                {% for professor in professores %}
+                                    <option value="{{ professor[0] }}"
+                                        {% if professor[0] == id_professor %}selected{% endif %}>
+                                        {{ professor[1] }} — {{ professor[2] }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        {% else %}
+                            <input class="form-control" id="id_professor" value="{{ professor_atribuido[1] }}" readonly>
+                            <div class="form-text">A aula será vinculada ao professor conectado.</div>
+                        {% endif %}
+                    </div>
+
                     <div class="mb-3" id="opcoesReposicao" hidden>
                         <label for="reposicao_de" class="form-label fw-semibold">Aula original reagendada</label>
                         <select class="form-select" id="reposicao_de" name="reposicao_de">
                             <option value="">Selecione a aula para repor...</option>
                             {% for origem in origens_reposicao %}
                                 <option value="{{ origem[0] }}" data-aluno="{{ origem[3] or '' }}"
+                                    data-professor="{{ origem[5] }}"
                                     {% if id_aula_origem == origem[0] %}selected{% endif %}>
                                     {{ origem[1].strftime('%d/%m/%Y %H:%M') }} —
                                     {{ origem[4] or 'Aluno não vinculado' }} —
-                                    {{ origem[2] or 'Sem tema' }}
+                                    {{ origem[2] or 'Sem tema' }} — {{ origem[6] }}
                                 </option>
                             {% endfor %}
                         </select>
@@ -122,7 +140,9 @@
                         <legend class="form-label fw-semibold">Materiais para esta aula (opcional)</legend>
                         {% for material in materiais %}
                             <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="materiais" id="material{{ material[0] }}" value="{{ material[0] }}">
+                                <input class="form-check-input" type="checkbox" name="materiais"
+                                       id="material{{ material[0] }}" value="{{ material[0] }}"
+                                       data-professor="{{ material[2] }}">
                                 <label class="form-check-label" for="material{{ material[0] }}">{{ material[1] }}</label>
                             </div>
                         {% else %}
@@ -146,6 +166,8 @@
     const camposRecorrencia = opcoesRecorrencia.querySelectorAll('input, select');
     const opcoesReposicao = document.getElementById('opcoesReposicao');
     const campoReposicao = document.getElementById('reposicao_de');
+    const campoProfessor = document.getElementById('id_professor');
+    const opcoesMateriais = document.querySelectorAll('input[name="materiais"]');
     const campoAluno = document.getElementById('id_aluno');
     const pesquisaAluno = document.getElementById('aluno_pesquisa');
     const opcoesAlunos = document.querySelectorAll('#lista_alunos option');
@@ -158,6 +180,19 @@
         pesquisaAluno.setCustomValidity(
             pesquisaAluno.value && !opcao ? 'Selecione um aluno da lista.' : ''
         );
+    }
+
+    function atualizarMateriaisProfessor() {
+        const idProfessor = campoProfessor.tagName === 'SELECT'
+            ? campoProfessor.value
+            : '{{ id_professor }}';
+        opcoesMateriais.forEach(material => {
+            const disponivel = material.dataset.professor === idProfessor;
+            material.closest('.form-check').hidden = !disponivel;
+            if (!disponivel) {
+                material.checked = false;
+            }
+        });
     }
 
     function atualizarModoAgendamento() {
@@ -192,9 +227,20 @@
     }
 
     radiosModo.forEach(radio => radio.addEventListener('change', atualizarModoAgendamento));
-    campoReposicao.addEventListener('change', atualizarModoAgendamento);
+    campoReposicao.addEventListener('change', () => {
+        const professorOrigem = campoReposicao.selectedOptions[0].dataset.professor;
+        if (professorOrigem && campoProfessor.tagName === 'SELECT') {
+            campoProfessor.value = professorOrigem;
+            atualizarMateriaisProfessor();
+        }
+        atualizarModoAgendamento();
+    });
+    if (campoProfessor.tagName === 'SELECT') {
+        campoProfessor.addEventListener('change', atualizarMateriaisProfessor);
+    }
     pesquisaAluno.addEventListener('input', atualizarAlunoSelecionado);
     document.querySelector('form').addEventListener('submit', atualizarAlunoSelecionado);
+    atualizarMateriaisProfessor();
     atualizarModoAgendamento();
 </script>
 {% endblock %}

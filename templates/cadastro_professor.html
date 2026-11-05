@@ -21,6 +21,16 @@
                         <input type="email" class="form-control" id="email" required placeholder="email@exemplo.com">
                     </div>
 
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="is_admin">
+                        <label class="form-check-label" for="is_admin">
+                            Conceder permissões de administrador
+                        </label>
+                        <div class="form-text">
+                            Administradores podem cadastrar alunos e professores e designar aulas para outros professores.
+                        </div>
+                    </div>
+
                     <div class="alert alert-info" role="note">
                         A senha inicial é <strong>mrdave</strong>. Depois de entrar, use “Mudar senha” no menu para criar sua senha pessoal.
                     </div>
@@ -132,7 +142,8 @@
             cidade: document.getElementById('cidade').value,
             uf: document.getElementById('uf').value,
             numero: document.getElementById('numero').value,
-            complemento: document.getElementById('complemento').value // Campo incluído aqui
+            complemento: document.getElementById('complemento').value,
+            is_admin: document.getElementById('is_admin').checked
         };
 
         try {

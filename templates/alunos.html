@@ -9,7 +9,7 @@
     <div class="col-12">
         <h2 class="text-primary fw-bold mb-4">Gerenciamento de Alunos</h2>
        
-        <!-- Formulário de Cadastro Direto -->
+        {% if is_admin %}
         <div class="card shadow-sm border-0 mb-5">
             <div class="card-body p-4">
                 <h4 class="card-title mb-3 fw-semibold text-secondary">Cadastrar Novo Aluno</h4>
@@ -74,6 +74,7 @@
                 </form>
             </div>
         </div>
+        {% endif %}
 
 
         <!-- Tabela de Listagem -->
@@ -88,7 +89,7 @@
                                 <th scope="col">Nome</th>
                                 <th scope="col">E-mail</th>
                                 <th scope="col">Cidade/UF</th>
-                                <th scope="col" class="text-center">Ações</th>
+                                {% if is_admin %}<th scope="col" class="text-center">Ações</th>{% endif %}
                             </tr>
                         </thead>
                         <tbody>
@@ -98,21 +99,23 @@
                                     <td class="fw-semibold">{{ aluno[1] }}</td>
                                     <td>{{ aluno[2] }}</td>
                                     <td>{{ aluno[3] }}/{{ aluno[4] }}</td>
-                                    <td class="text-center">
-                                        <div class="btn-group" role="group">
-                                            <a href="/alunos/editar/{{ aluno[0] }}" class="btn btn-sm btn-outline-warning" title="Editar">
-                                                Editar
-                                            </a>
-                                            <form action="/alunos/excluir/{{ aluno[0] }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este aluno?');">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-0 rounded-end">Excluir</button>
-                                            </form>
-                                        </div>
-                                    </td>
+                                    {% if is_admin %}
+                                        <td class="text-center">
+                                            <div class="btn-group" role="group">
+                                                <a href="/alunos/editar/{{ aluno[0] }}" class="btn btn-sm btn-outline-warning" title="Editar">
+                                                    Editar
+                                                </a>
+                                                <form action="/alunos/excluir/{{ aluno[0] }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este aluno?');">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-0 rounded-end">Excluir</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">Nenhum aluno cadastrado até o momento.</td>
+                                    <td colspan="{{ 4 if is_admin else 3 }}" class="text-center text-muted py-4">Nenhum aluno cadastrado até o momento.</td>
                                 </tr>
                             {% endif %}
                         </tbody>
@@ -128,6 +131,7 @@
 
 
 
+{% if is_admin %}
 <script>
     // 1. Automação ViaCEP com Sanitização (RN08)
     const campoCep = document.getElementById('cep');
@@ -205,6 +209,7 @@
         }
     });
 </script>
+{% endif %}
 
 
 

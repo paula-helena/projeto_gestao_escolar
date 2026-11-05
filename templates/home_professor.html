@@ -19,6 +19,15 @@
         </a>
     </div>
     <div class="col-12 col-md-6 col-lg-4">
+        <a class="card h-100 shadow-sm text-decoration-none" href="{{ url_for('calendario_aulas') }}">
+            <div class="card-body">
+                <i class="bi bi-calendar3 fs-2 text-primary"></i>
+                <h2 class="h5 mt-3">Calendário de Aulas</h2>
+                <p class="text-secondary mb-0">Visualize suas aulas por semana ou mês.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-12 col-md-6 col-lg-4">
         <a class="card h-100 shadow-sm text-decoration-none" href="{{ url_for('nova_aula') }}">
             <div class="card-body">
                 <i class="bi bi-calendar-plus fs-2 text-primary"></i>
@@ -63,15 +72,17 @@
             </div>
         </a>
     </div>
-    <div class="col-12 col-md-6 col-lg-4">
-        <a class="card h-100 shadow-sm text-decoration-none" href="{{ url_for('pagina_cadastro') }}">
-            <div class="card-body">
-                <i class="bi bi-person-plus fs-2 text-primary"></i>
-                <h2 class="h5 mt-3">Novo cadastro</h2>
-                <p class="text-secondary mb-0">Cadastre um aluno ou professor.</p>
-            </div>
-        </a>
-    </div>
+    {% if session.get('is_admin') %}
+        <div class="col-12 col-md-6 col-lg-4">
+            <a class="card h-100 shadow-sm text-decoration-none" href="{{ url_for('pagina_cadastro') }}">
+                <div class="card-body">
+                    <i class="bi bi-person-plus fs-2 text-primary"></i>
+                    <h2 class="h5 mt-3">Novo cadastro</h2>
+                    <p class="text-secondary mb-0">Cadastre um aluno ou professor.</p>
+                </div>
+            </a>
+        </div>
+    {% endif %}
     <div class="col-12 col-md-6 col-lg-4">
         <a class="card h-100 shadow-sm text-decoration-none" href="{{ url_for('alterar_senha') }}">
             <div class="card-body">

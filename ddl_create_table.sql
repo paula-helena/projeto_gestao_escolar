@@ -20,6 +20,7 @@ CREATE TABLE Professor (
     email VARCHAR(100) UNIQUE NOT NULL,
     senha VARCHAR(255) NOT NULL,
     disciplina VARCHAR(100) NOT NULL,
+    is_admin BOOLEAN NOT NULL DEFAULT FALSE,
     cep VARCHAR(9) NOT NULL,
     logradouro VARCHAR(150) NOT NULL,
     bairro VARCHAR(100) NOT NULL,

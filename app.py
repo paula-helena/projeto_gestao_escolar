@@ -290,6 +290,22 @@ def login_required(perfil_permitido=None):
         return decorated_function
     return decorator
 
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('Você precisa estar logado para acessar esta página.', 'warning')
+            return redirect(url_for('login'))
+        if session.get('perfil') != 'PROFESSOR' or not session.get('is_admin'):
+            flash('Somente um professor administrador pode acessar esta área.', 'danger')
+            if session.get('perfil') == 'ALUNO':
+                return redirect(url_for('home_aluno'))
+            return redirect(url_for('home_professor'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # Disponibiliza os dados de sessão em todos os templates HTML
 @app.context_processor
 def inject_user():
@@ -344,8 +360,10 @@ def login():
             perfil = None
             for candidato in candidatos:
                 tabela, id_coluna = perfis[candidato]
+                coluna_admin = ', is_admin' if candidato == 'PROFESSOR' else ''
                 cursor.execute(
-                    f"SELECT {id_coluna}, nome, email, senha FROM {tabela} WHERE email = %s",
+                    f"SELECT {id_coluna}, nome, email, senha{coluna_admin} "
+                    f"FROM {tabela} WHERE email = %s",
                     (email,)
                 )
                 usuario = cursor.fetchone()
@@ -368,6 +386,9 @@ def login():
                     session['nome'] = usuario[1]
                     session['email'] = usuario[2]
                     session['perfil'] = perfil
+                    session['is_admin'] = (
+                        bool(usuario[4]) if perfil == 'PROFESSOR' else False
+                    )
 
                     get_flashed_messages()
                     flash(f'Bem-vindo(a), {usuario[1]}!', 'success')
@@ -682,56 +703,89 @@ def nova_aula():
     """Cria uma aula avulsa, uma reposição ou uma série semanal."""
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
+    is_admin = session.get('is_admin', False)
 
     if request.method == 'GET':
         try:
+            cursor.execute("""
+                SELECT id_professor, nome, email
+                FROM public.professor
+                WHERE (%s = TRUE OR id_professor = %s)
+                ORDER BY nome
+            """, (is_admin, session['user_id']))
+            professores = cursor.fetchall()
+            id_professor = request.args.get('id_professor', type=int)
+            id_professor = id_professor if is_admin and id_professor else session['user_id']
             id_aula_origem = request.args.get('reposicao_de', type=int)
+            if id_aula_origem and is_admin:
+                cursor.execute("""
+                    SELECT id_professor FROM public.aula
+                    WHERE id_aula = %s AND status = 'REAGENDADA'
+                """, (id_aula_origem,))
+                professor_origem = cursor.fetchone()
+                if professor_origem:
+                    id_professor = professor_origem[0]
+            if id_professor not in {professor[0] for professor in professores}:
+                id_professor = session['user_id']
+            professor_atribuido = next(
+                (professor for professor in professores if professor[0] == id_professor),
+                None,
+            )
             reposicao = None
             if id_aula_origem:
                 cursor.execute("""
-                    SELECT a.id_aula, a.tema, aa.id_aluno, al.nome
+                    SELECT a.id_aula, a.tema, aa.id_aluno, al.nome,
+                           a.id_professor, p.nome
                     FROM public.aula AS a
                     LEFT JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
                     LEFT JOIN public.aluno AS al ON al.id_aluno = aa.id_aluno
+                    JOIN public.professor AS p ON p.id_professor = a.id_professor
                     WHERE a.id_aula = %s AND a.id_professor = %s
                       AND a.status = 'REAGENDADA'
                       AND NOT EXISTS (
                           SELECT 1 FROM public.aula AS reposicao
                           WHERE reposicao.id_aula_origem = a.id_aula
                       )
-                """, (id_aula_origem, session['user_id']))
+                """, (id_aula_origem, id_professor))
                 reposicao = cursor.fetchone()
                 if not reposicao:
                     flash('Aula de origem não está disponível para reposição.', 'warning')
                     return redirect(url_for('listar_aulas'))
 
             cursor.execute("""
-                SELECT a.id_aula, a.data_hora, a.tema, al.id_aluno, al.nome
+                SELECT a.id_aula, a.data_hora, a.tema, al.id_aluno, al.nome,
+                       a.id_professor, p.nome
                 FROM public.aula AS a
                 LEFT JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
                 LEFT JOIN public.aluno AS al ON al.id_aluno = aa.id_aluno
-                WHERE a.id_professor = %s AND a.status = 'REAGENDADA'
+                JOIN public.professor AS p ON p.id_professor = a.id_professor
+                WHERE (%s = TRUE OR a.id_professor = %s)
+                  AND a.status = 'REAGENDADA'
                   AND NOT EXISTS (
                       SELECT 1 FROM public.aula AS reposicao
                       WHERE reposicao.id_aula_origem = a.id_aula
                   )
                 ORDER BY a.data_hora DESC, a.id_aula DESC
-            """, (session['user_id'],))
+            """, (is_admin, id_professor))
             origens_reposicao = cursor.fetchall()
 
             cursor.execute("SELECT id_aluno, nome, email FROM public.aluno ORDER BY nome")
             alunos = cursor.fetchall()
             cursor.execute("""
-                SELECT id_material, titulo
+                SELECT id_material, titulo, id_professor
                 FROM public.material_didatico
-                WHERE id_professor = %s
+                WHERE (%s = TRUE OR id_professor = %s)
                 ORDER BY titulo
-            """, (session['user_id'],))
+            """, (is_admin, id_professor))
             materiais = cursor.fetchall()
             return render_template(
                 'nova_aula.html',
                 alunos=alunos,
                 materiais=materiais,
+                professores=professores,
+                professor_atribuido=professor_atribuido,
+                id_professor=id_professor,
+                is_admin=is_admin,
                 reposicao=reposicao,
                 origens_reposicao=origens_reposicao,
                 id_aula_origem=id_aula_origem,
@@ -742,6 +796,19 @@ def nova_aula():
 
     id_aula_origem = None
     try:
+        id_professor = (
+            request.form.get('id_professor', type=int)
+            if is_admin else session['user_id']
+        )
+        if not id_professor:
+            raise ValueError('Selecione um professor para a aula.')
+        cursor.execute(
+            "SELECT 1 FROM public.professor WHERE id_professor = %s",
+            (id_professor,),
+        )
+        if not cursor.fetchone():
+            raise ValueError('Professor selecionado não encontrado.')
+
         modo = request.form.get('modo')
         if modo not in ('reposicao', 'recorrente', 'experimental'):
             raise ValueError('Selecione um tipo de agendamento válido.')
@@ -774,7 +841,7 @@ def nova_aula():
                       SELECT 1 FROM public.aula AS reposicao
                       WHERE reposicao.id_aula_origem = a.id_aula
                   )
-            """, (id_aula_origem, session['user_id']))
+            """, (id_aula_origem, id_professor))
             origem = cursor.fetchone()
             if not origem:
                 raise ValueError('Aula de origem não está disponível para reposição.')
@@ -791,7 +858,7 @@ def nova_aula():
             raise ValueError('Aluno selecionado não encontrado.')
 
         ids_materiais = materiais_selecionados(
-            cursor, request.form.getlist('materiais'), session['user_id']
+            cursor, request.form.getlist('materiais'), id_professor
         )
         data_hora = validar_horario_aula(request.form.get('data_hora'))
 
@@ -825,7 +892,7 @@ def nova_aula():
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id_recorrencia
             """, (
-                session['user_id'], id_aluno, tema, data_hora.date(),
+                id_professor, id_aluno, tema, data_hora.date(),
                 data_hora.time(), dias_semana, fim_em,
                 data_hora.date() - timedelta(days=1), link_aula,
             ))
@@ -844,13 +911,13 @@ def nova_aula():
                 else max(hoje, data_hora.date()) + timedelta(days=90)
             )
             expandir_recorrencias(
-                cursor, 'PROFESSOR', session['user_id'], limite
+                cursor, 'PROFESSOR', id_professor, limite
             )
             mensagem = 'Aulas recorrentes agendadas com sucesso!'
         else:
             criar_aula(
                 cursor,
-                session['user_id'],
+                id_professor,
                 id_aluno,
                 tema,
                 data_hora,
@@ -871,7 +938,108 @@ def nova_aula():
     except ValueError as erro:
         conexao.rollback()
         flash(str(erro), 'warning')
-        return redirect(url_for('nova_aula', reposicao_de=id_aula_origem))
+        return redirect(url_for(
+            'nova_aula',
+            reposicao_de=id_aula_origem,
+            id_professor=id_professor if is_admin else None,
+        ))
+    except Exception:
+        conexao.rollback()
+        raise
+    finally:
+        cursor.close()
+        conexao.close()
+
+
+@app.route('/calendario')
+@login_required()
+def calendario_aulas():
+    visualizacao = request.args.get('visualizacao', 'semana')
+    if visualizacao not in ('semana', 'mes'):
+        visualizacao = 'semana'
+    try:
+        referencia = datetime.strptime(
+            request.args.get('data', ''), '%Y-%m-%d'
+        ).date()
+    except ValueError:
+        referencia = date.today()
+
+    if visualizacao == 'semana':
+        inicio = referencia - timedelta(days=referencia.weekday())
+        fim = inicio + timedelta(days=7)
+        dias = [[inicio + timedelta(days=indice) for indice in range(7)]]
+        inicio_consulta = inicio
+        fim_consulta = fim
+        titulo = f'{inicio:%d/%m/%Y} – {fim - timedelta(days=1):%d/%m/%Y}'
+        anterior = inicio - timedelta(days=7)
+        proximo = inicio + timedelta(days=7)
+    else:
+        inicio = referencia.replace(day=1)
+        fim = adicionar_meses(inicio, 1)
+        dias = calendar.Calendar(firstweekday=0).monthdatescalendar(
+            referencia.year, referencia.month
+        )
+        inicio_consulta = dias[0][0]
+        fim_consulta = dias[-1][-1] + timedelta(days=1)
+        meses = (
+            'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+            'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+        )
+        titulo = f'{meses[referencia.month - 1].capitalize()} {referencia.year}'
+        anterior = adicionar_meses(inicio, -1)
+        proximo = fim
+
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    try:
+        expandir_recorrencias(
+            cursor, session['perfil'], session['user_id'], fim_consulta
+        )
+        cursor.execute("""
+            SELECT timezone('America/Sao_Paulo', CURRENT_TIMESTAMP)
+        """)
+        agora = cursor.fetchone()[0]
+        atualizar_status_aulas_concluidas(cursor, agora)
+        if session['perfil'] == 'PROFESSOR':
+            cursor.execute("""
+                SELECT a.id_aula, a.data_hora, a.tema, a.status, al.nome,
+                       p.nome, a.link_aula, a.tipo_aula
+                FROM public.aula AS a
+                JOIN public.professor AS p ON p.id_professor = a.id_professor
+                LEFT JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
+                LEFT JOIN public.aluno AS al ON al.id_aluno = aa.id_aluno
+                WHERE a.id_professor = %s
+                  AND a.data_hora >= %s AND a.data_hora < %s
+                ORDER BY a.data_hora, a.id_aula
+            """, (session['user_id'], inicio_consulta, fim_consulta))
+        else:
+            cursor.execute("""
+                SELECT a.id_aula, a.data_hora, a.tema, a.status, al.nome,
+                       p.nome, a.link_aula, a.tipo_aula
+                FROM public.aula AS a
+                JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
+                JOIN public.aluno AS al ON al.id_aluno = aa.id_aluno
+                JOIN public.professor AS p ON p.id_professor = a.id_professor
+                WHERE aa.id_aluno = %s
+                  AND a.data_hora >= %s AND a.data_hora < %s
+                ORDER BY a.data_hora, a.id_aula
+            """, (session['user_id'], inicio_consulta, fim_consulta))
+        aulas_por_data = {}
+        for aula in cursor.fetchall():
+            aulas_por_data.setdefault(aula[1].date(), []).append(aula)
+        conexao.commit()
+        return render_template(
+            'calendario.html',
+            visualizacao=visualizacao,
+            titulo=titulo,
+            dias=dias,
+            inicio=inicio,
+            fim=fim,
+            anterior=anterior,
+            proximo=proximo,
+            aulas_por_data=aulas_por_data,
+            perfil=session['perfil'],
+        )
     except Exception:
         conexao.rollback()
         raise
@@ -1360,22 +1528,19 @@ def novo_material():
 # 7. SEÇÃO DE CADASTRO (ALUNOS E PROFESSORES)
 # ==================================================
 @app.route('/cadastro')
+@admin_required
 def pagina_cadastro():
-    if session.get('perfil') == 'ALUNO':
-        return redirect(url_for('home_aluno'))
-    if session.get('perfil') != 'PROFESSOR':
-        return render_template('cadastro_aluno.html')
     return render_template('selecionar_cadastro.html')
 
 
 @app.route('/cadastro-aluno')
+@admin_required
 def pagina_cadastro_aluno():
-    if session.get('perfil') == 'ALUNO':
-        return redirect(url_for('home_aluno'))
     return render_template('cadastro_aluno.html')
 
 
 @app.route('/api/alunos', methods=['POST'])
+@admin_required
 def cadastrar_aluno():
     dados = request.json
     senha_hash = bcrypt.generate_password_hash(SENHA_PADRAO).decode('utf-8')
@@ -1415,11 +1580,15 @@ def gerenciar_alunos():
    
     cursor.close()
     conexao.close()
-    return render_template('alunos.html', alunos=alunos)
+    return render_template(
+        'alunos.html',
+        alunos=alunos,
+        is_admin=session.get('is_admin', False),
+    )
 
 
 @app.route('/alunos/editar/<int:id_aluno>', methods=['GET'])
-@login_required('PROFESSOR')
+@admin_required
 def editar_aluno_form(id_aluno):
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
@@ -1442,7 +1611,7 @@ def editar_aluno_form(id_aluno):
 
 
 @app.route('/alunos/atualizar/<int:id_aluno>', methods=['POST'])
-@login_required('PROFESSOR')
+@admin_required
 def atualizar_aluno(id_aluno):
     nome = request.form.get('nome')
     email = request.form.get('email')
@@ -1476,7 +1645,7 @@ def atualizar_aluno(id_aluno):
 
 
 @app.route('/alunos/excluir/<int:id_aluno>', methods=['POST'])
-@login_required('PROFESSOR')
+@admin_required
 def excluir_aluno(id_aluno):
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
@@ -1496,15 +1665,16 @@ def excluir_aluno(id_aluno):
 
 
 @app.route('/cadastro-professor')
-@login_required('PROFESSOR')
+@admin_required
 def pagina_cadastro_professor():
     return render_template('cadastro_professor.html')
 
 
 @app.route('/api/professores', methods=['POST'])
-@login_required('PROFESSOR')
+@admin_required
 def cadastrar_professor():
     dados = request.json
+    is_admin = dados.get('is_admin') is True
     senha_hash = bcrypt.generate_password_hash(SENHA_PADRAO).decode('utf-8')
    
     conexao = psycopg2.connect(DATABASE_URL)
@@ -1512,12 +1682,16 @@ def cadastrar_professor():
    
     try:
         cursor.execute("""
-            INSERT INTO Professor (nome, email, senha, disciplina, cep, logradouro, bairro, cidade, uf, numero, complemento)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id_professor, nome
+            INSERT INTO Professor (
+                nome, email, senha, disciplina, cep, logradouro, bairro,
+                cidade, uf, numero, complemento, is_admin
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id_professor, nome
         """, (
             dados['nome'], dados['email'], senha_hash, dados['disciplina'],
             dados['cep'], dados['logradouro'], dados['bairro'], dados['cidade'],
-            dados['uf'], dados['numero'], dados.get('complemento')
+            dados['uf'], dados['numero'], dados.get('complemento'), is_admin,
         ))
         novo_prof = cursor.fetchone()
         conexao.commit()
@@ -1537,16 +1711,24 @@ def gerenciar_professores():
     cursor = conexao.cursor()
 
 
-    cursor.execute("SELECT id_professor, nome, email, disciplina, cidade, uf FROM Professor ORDER BY id_professor DESC")
+    cursor.execute("""
+        SELECT id_professor, nome, email, disciplina, cidade, uf, is_admin
+        FROM Professor
+        ORDER BY id_professor DESC
+    """)
     professores = cursor.fetchall()
    
     cursor.close()
     conexao.close()
-    return render_template('professores.html', professores=professores)
+    return render_template(
+        'professores.html',
+        professores=professores,
+        is_admin=session.get('is_admin', False),
+    )
 
 
 @app.route('/professores/editar/<int:id_professor>', methods=['GET'])
-@login_required('PROFESSOR')
+@admin_required
 def editar_professor_form(id_professor):
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
@@ -1569,7 +1751,7 @@ def editar_professor_form(id_professor):
 
 
 @app.route('/professores/atualizar/<int:id_professor>', methods=['POST'])
-@login_required('PROFESSOR')
+@admin_required
 def atualizar_professor(id_professor):
     nome = request.form.get('nome')
     email = request.form.get('email')
@@ -1604,7 +1786,7 @@ def atualizar_professor(id_professor):
 
 
 @app.route('/professores/excluir/<int:id_professor>', methods=['POST'])
-@login_required('PROFESSOR')
+@admin_required
 def excluir_professor(id_professor):
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()

@@ -24,6 +24,8 @@ class RecuperacaoSenhaTests(unittest.TestCase):
 
     @patch('app.psycopg2.connect')
     def test_novo_aluno_recebe_senha_padrao_independente_do_json(self, conectar):
+        with self.client.session_transaction() as sessao:
+            sessao.update(user_id=1, perfil='PROFESSOR', is_admin=True)
         conexao, cursor = self.conexao_mock((19, 'Aluno Novo'))
         conectar.return_value = conexao
 
@@ -53,7 +55,7 @@ class RecuperacaoSenhaTests(unittest.TestCase):
         conexao, cursor = self.conexao_mock((23, 'Professor Novo'))
         conectar.return_value = conexao
         with self.client.session_transaction() as sessao:
-            sessao.update(user_id=1, perfil='PROFESSOR')
+            sessao.update(user_id=1, perfil='PROFESSOR', is_admin=True)
 
         resposta = self.client.post('/api/professores', json={
             'nome': 'Professor Novo',
@@ -202,7 +204,7 @@ class RecuperacaoSenhaTests(unittest.TestCase):
 
     def test_link_fazer_login_nao_aparece_para_professor_logado(self):
         with self.client.session_transaction() as sessao:
-            sessao.update(user_id=1, perfil='PROFESSOR')
+            sessao.update(user_id=1, perfil='PROFESSOR', is_admin=True)
 
         resposta = self.client.get('/cadastro')
 
