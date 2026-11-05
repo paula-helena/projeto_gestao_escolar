@@ -93,6 +93,8 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertIn('Consulte e gerencie os professores cadastrados na plataforma.', pagina)
         self.assertIn('Cadastrar Professor', pagina)
         self.assertIn('/cadastro-professor', pagina)
+        self.assertIn('Tornar Administrador', pagina)
+        self.assertIn('/professores/9/administrador', pagina)
 
     @patch('app.psycopg2.connect')
     def test_professor_comum_pode_consultar_alunos_sem_botao_cadastrar(self, conectar):
@@ -107,6 +109,93 @@ class NavegacaoESenhaTests(unittest.TestCase):
 
         self.assertEqual(resposta.status_code, 200)
         self.assertNotIn('Cadastrar Aluno', resposta.get_data(as_text=True))
+
+    @patch('app.psycopg2.connect')
+    def test_professor_comum_nao_ve_acoes_de_administrador(self, conectar):
+        cursor = Mock()
+        cursor.fetchall.return_value = [
+            (9, 'Professor Teste', 'professor@example.com', 'Inglês', 'São Paulo', 'SP', False)
+        ]
+        conexao = Mock()
+        conexao.cursor.return_value = cursor
+        conectar.return_value = conexao
+        self.autenticar('PROFESSOR')
+
+        resposta = self.client.get('/professores')
+
+        self.assertEqual(resposta.status_code, 200)
+        pagina = resposta.get_data(as_text=True)
+        self.assertNotIn('Tornar Administrador', pagina)
+        self.assertNotIn('/professores/9/administrador', pagina)
+
+    @patch('app.psycopg2.connect')
+    def test_administrador_pode_promover_professor(self, conectar):
+        cursor = Mock()
+        cursor.fetchall.return_value = [(4,)]
+        cursor.fetchone.return_value = (False,)
+        conexao = Mock()
+        conexao.cursor.return_value = cursor
+        conectar.return_value = conexao
+        self.autenticar('PROFESSOR', is_admin=True)
+
+        resposta = self.client.post('/professores/9/administrador')
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(resposta.location, '/professores')
+        cursor.execute.assert_any_call(
+            'UPDATE Professor SET is_admin = %s WHERE id_professor = %s',
+            (True, 9),
+        )
+        conexao.commit.assert_called_once_with()
+
+    @patch('app.psycopg2.connect')
+    def test_administrador_pode_remover_acesso_de_outro_administrador(self, conectar):
+        cursor = Mock()
+        cursor.fetchall.return_value = [(4,), (9,)]
+        cursor.fetchone.return_value = (True,)
+        conexao = Mock()
+        conexao.cursor.return_value = cursor
+        conectar.return_value = conexao
+        self.autenticar('PROFESSOR', is_admin=True)
+
+        resposta = self.client.post('/professores/9/administrador')
+
+        self.assertEqual(resposta.status_code, 302)
+        cursor.execute.assert_any_call(
+            'UPDATE Professor SET is_admin = %s WHERE id_professor = %s',
+            (False, 9),
+        )
+        conexao.commit.assert_called_once_with()
+
+    @patch('app.psycopg2.connect')
+    def test_nao_permite_remover_o_ultimo_administrador(self, conectar):
+        cursor = Mock()
+        cursor.fetchall.return_value = [(9,)]
+        cursor.fetchone.return_value = (True,)
+        conexao = Mock()
+        conexao.cursor.return_value = cursor
+        conectar.return_value = conexao
+        self.autenticar('PROFESSOR', is_admin=True)
+
+        resposta = self.client.post('/professores/9/administrador')
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(resposta.location, '/professores')
+        self.assertFalse(any(
+            'UPDATE Professor SET is_admin' in chamada.args[0]
+            for chamada in cursor.execute.call_args_list
+        ))
+        conexao.commit.assert_not_called()
+
+    @patch('app.psycopg2.connect')
+    def test_professor_comum_nao_pode_alterar_acesso_de_administrador(self, conectar):
+        self.autenticar('PROFESSOR')
+
+        resposta = self.client.post('/professores/9/administrador')
+
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(resposta.location, '/home-professor')
+        conectar.assert_not_called()
 
     def test_barra_e_home_do_aluno_mostram_apenas_rotas_de_aluno(self):
         self.autenticar('ALUNO')
