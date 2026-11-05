@@ -220,10 +220,12 @@ def login():
         senha = request.form.get('senha')
         perfil_solicitado = request.form.get('perfil')
 
-        conexao = psycopg2.connect(DATABASE_URL)
-        cursor = conexao.cursor()
-
+        conexao = None
+        cursor = None
         try:
+            conexao = psycopg2.connect(DATABASE_URL)
+            cursor = conexao.cursor()
+
             perfis = {
                 'ALUNO': ('public.aluno', 'id_aluno'),
                 'PROFESSOR': ('public.professor', 'id_professor'),
@@ -270,12 +272,18 @@ def login():
             # Se não encontrou o usuário ou a senha estava incorreta
             flash('E-mail ou senha incorretos. Tente novamente.', 'danger')
 
-        except Exception as e:
-            flash(f'Erro ao processar login: {str(e)}', 'danger')
+        except psycopg2.Error:
+            app.logger.exception('Erro de banco de dados ao processar login.')
+            flash(
+                'Não foi possível acessar o sistema no momento. Tente novamente mais tarde.',
+                'danger'
+            )
 
         finally:
-            cursor.close()
-            conexao.close()
+            if cursor is not None:
+                cursor.close()
+            if conexao is not None:
+                conexao.close()
 
     return render_template('login.html')
 
