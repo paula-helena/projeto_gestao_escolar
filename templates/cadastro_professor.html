@@ -21,9 +21,8 @@
                         <input type="email" class="form-control" id="email" required placeholder="email@exemplo.com">
                     </div>
 
-                    <div class="mb-3">
-                        <label for="senha" class="form-label">Senha Acesso Inicial</label>
-                        <input type="password" class="form-control" id="senha" required placeholder="Crie uma senha inicial">
+                    <div class="alert alert-info" role="note">
+                        A senha inicial é <strong>mrdave</strong>. Depois, o professor poderá usar “Esqueci minha senha” na tela de login para criar uma senha pessoal.
                     </div>
 
                     <div class="mb-3">
@@ -126,7 +125,6 @@
         const pacote = {
             nome: document.getElementById('nome').value,
             email: document.getElementById('email').value,
-            senha: document.getElementById('senha').value,
             disciplina: document.getElementById('disciplina').value,
             cep: document.getElementById('cep').value.replace(/\D/g, ''),
             logradouro: document.getElementById('logradouro').value,
@@ -147,7 +145,7 @@
             const resultado = await resposta.json();
 
             if (resposta.status === 201) {
-                alert("Professor cadastrado com sucesso!");
+                alert("Professor cadastrado com sucesso! A senha inicial é mrdave. O professor poderá usar “Esqueci minha senha” para criar uma senha pessoal.");
                 document.getElementById('formCadastro').reset();
                 
                 // Desbloqueia os campos de endereço caso queira cadastrar outro em seguida
