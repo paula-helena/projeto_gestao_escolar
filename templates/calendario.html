@@ -24,7 +24,7 @@
 </div>
 
 <div class="d-flex flex-wrap gap-3 small mb-3" aria-label="Legenda do calendário">
-    <span><span class="badge bg-success-subtle border border-success text-success">&nbsp;</span> Aula De Data Passada</span>
+    <span><span class="badge bg-success-subtle border border-success text-success">&nbsp;</span> Concluído</span>
     <span><span class="badge bg-warning-subtle border border-warning text-warning">&nbsp;</span> Reagendada</span>
     <span><span class="badge bg-danger-subtle border border-danger text-danger">&nbsp;</span> Cancelada</span>
 </div>
@@ -68,26 +68,26 @@
                                             <ul class="dropdown-menu dropdown-menu-end">
                                                 <li>
                                                     <a class="dropdown-item"
-                                                       href="{{ url_for('detalhes_aula', id_aula=aula[0]) }}">Detalhes Da Aula</a>
+                                                       href="{{ url_for('detalhes_aula', id_aula=aula[0]) }}">Detalhes</a>
                                                 </li>
                                                 {% if perfil == 'PROFESSOR' %}
                                                     <li>
                                                         <a class="dropdown-item"
-                                                           href="{{ url_for('editar_aula_form', id_aula=aula[0]) }}">Editar Aula</a>
+                                                           href="{{ url_for('editar_aula_form', id_aula=aula[0]) }}">Editar</a>
                                                     </li>
                                                     {% if aula[3] in ('AGENDADA', 'CONCLUIDA') %}
                                                         <li>
                                                             <form action="{{ url_for('cancelar_aula', id_aula=aula[0]) }}"
                                                                   method="POST"
                                                                   onsubmit="return confirm('Cancelar esta aula?');">
-                                                                <button type="submit" class="dropdown-item">Cancelar Aula</button>
+                                                                <button type="submit" class="dropdown-item">Cancelar</button>
                                                             </form>
                                                         </li>
                                                         <li>
                                                             <form action="{{ url_for('iniciar_reagendamento', id_aula=aula[0]) }}"
                                                                   method="POST"
                                                                   onsubmit="return confirm('Cancelar esta aula e agendar uma reposição?');">
-                                                                <button type="submit" class="dropdown-item">Reagendar Aula</button>
+                                                                <button type="submit" class="dropdown-item">Reagendar</button>
                                                             </form>
                                                         </li>
                                                     {% endif %}
@@ -96,7 +96,7 @@
                                                         <form action="{{ url_for('excluir_aula', id_aula=aula[0]) }}"
                                                               method="POST"
                                                               onsubmit="return confirm('Excluir esta aula?');">
-                                                            <button type="submit" class="dropdown-item text-danger">Excluir Aula</button>
+                                                            <button type="submit" class="dropdown-item text-danger">Excluir</button>
                                                         </form>
                                                     </li>
                                                 {% endif %}

@@ -219,8 +219,8 @@ class AgendaRouteTests(unittest.TestCase):
             mes = self.client.get('/calendario?visualizacao=mes&data=2026-11-02')
         self.assertEqual(semana.status_code, 200)
         self.assertIn('02/11/2026 – 08/11/2026', semana.get_data(as_text=True))
-        self.assertIn('Detalhes Da Aula', semana.get_data(as_text=True))
-        self.assertIn('Editar Aula', semana.get_data(as_text=True))
+        self.assertIn('>Detalhes</a>', semana.get_data(as_text=True))
+        self.assertIn('>Editar</a>', semana.get_data(as_text=True))
         self.assertEqual(mes.status_code, 200)
         self.assertIn('Novembro 2026', mes.get_data(as_text=True))
 
@@ -255,15 +255,21 @@ class AgendaRouteTests(unittest.TestCase):
         self.assertIn('bg-warning-subtle border-warning', pagina)
         self.assertIn('bg-danger-subtle border-danger', pagina)
         self.assertIn('bg-body-tertiary border-secondary-subtle', pagina)
+        self.assertIn('> Concluído</span>', pagina)
         self.assertIn('data-bs-toggle="dropdown"', pagina)
         self.assertIn('Ações da aula 10', pagina)
-        self.assertIn('Reagendar Aula', pagina)
+        self.assertIn('>Reagendar</button>', pagina)
         self.assertNotIn('Agendar Reposição', pagina)
-        self.assertEqual(pagina.count('Detalhes Da Aula'), 4)
-        self.assertEqual(pagina.count('Editar Aula'), 4)
-        self.assertEqual(pagina.count('Cancelar Aula'), 2)
-        self.assertEqual(pagina.count('Excluir Aula'), 4)
-        self.assertEqual(pagina.count('Reagendar Aula'), 2)
+        for label in ('Detalhes', 'Editar', 'Cancelar', 'Reagendar', 'Excluir'):
+            self.assertIn(f'>{label}<', pagina)
+        for label in ('Detalhes Da Aula', 'Editar Aula', 'Cancelar Aula',
+                      'Reagendar Aula', 'Excluir Aula', 'Aula De Data Passada'):
+            self.assertNotIn(label, pagina)
+        self.assertEqual(pagina.count('>Detalhes</a>'), 4)
+        self.assertEqual(pagina.count('>Editar</a>'), 4)
+        self.assertEqual(pagina.count('>Cancelar</button>'), 2)
+        self.assertEqual(pagina.count('>Excluir</button>'), 4)
+        self.assertEqual(pagina.count('>Reagendar</button>'), 2)
 
     def test_calendario_do_aluno_abre_sem_erro(self):
         conexao = FakeConnection()
