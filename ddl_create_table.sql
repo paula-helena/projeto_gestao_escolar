@@ -29,12 +29,6 @@ CREATE TABLE Professor (
     complemento VARCHAR(100)
 );
 
-CREATE TABLE Tema (
-    id_tema SERIAL PRIMARY KEY,
-    titulo VARCHAR(150) NOT NULL,
-    descricao TEXT
-);
-
 CREATE TABLE Evento_Institucional (
     id_evento SERIAL PRIMARY KEY,
     titulo VARCHAR(150) NOT NULL,
@@ -49,7 +43,9 @@ CREATE TABLE Evento_Institucional (
 CREATE TABLE Aula (
     id_aula SERIAL PRIMARY KEY,
     id_professor INT NOT NULL,
-    tema VARCHAR(150) NOT NULL,  -- Alterado para receber o texto direto do form
+    tema VARCHAR(150),
+    tipo_aula VARCHAR(20) NOT NULL DEFAULT 'EXPERIMENTAL'
+        CHECK (tipo_aula IN ('REPOSICAO', 'RECORRENTE', 'EXPERIMENTAL')),
     data_hora TIMESTAMP NOT NULL, -- Unificado para bater com o datetime-local do HTML
     status VARCHAR(50) DEFAULT 'AGENDADA',
     link_aula VARCHAR(255),
@@ -89,6 +85,7 @@ CREATE TABLE Aula_Recorrencia (
     tema VARCHAR(150),
     inicio DATE NOT NULL,
     hora TIME NOT NULL,
+    link_aula VARCHAR(255),
     dias_semana INTEGER[] NOT NULL,
     fim_em DATE,
     gerada_ate DATE NOT NULL,

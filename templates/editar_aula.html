@@ -15,18 +15,19 @@
                
                 <form action="/aulas/atualizar/{{ aula[0] }}" method="POST">
                    
-                    <!-- Campo: Tema da Aula -->
                     <div class="mb-3">
-                        <label for="tema" class="form-label fw-semibold">Tema da Aula</label>
-                        <select class="form-select" id="tema" name="tema">
-                            <option value="">Sem tema</option>
-                            {% if aula[2] %}
-                                <option value="{{ aula[2] }}" selected>{{ aula[2] }} (Atual)</option>
-                            {% endif %}
-                            {% for t in temas %}
-                                <option value="{{ t[1] }}">{{ t[1] }}</option>
-                            {% endfor %}
-                        </select>
+                        <label for="tema" class="form-label fw-semibold">Tema da aula (opcional)</label>
+                        <input type="text" class="form-control" id="tema" name="tema"
+                               maxlength="150" value="{{ aula[2] or '' }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="link_aula" class="form-label fw-semibold">
+                            Link da videoaula no Google Meet (opcional)
+                        </label>
+                        <input type="url" class="form-control" id="link_aula" name="link_aula"
+                               maxlength="255" value="{{ aula[4] or '' }}"
+                               placeholder="https://meet.google.com/...">
                     </div>
 
 

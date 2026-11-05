@@ -33,4 +33,24 @@ Não coloque credenciais SMTP no código ou no repositório. Até o SMTP ser con
 
 ## Agendamento de aulas
 
-As aulas recorrentes são semanais: todos os dias selecionados usam o mesmo horário. Mês, trimestre, semestre e ano correspondem a 1, 3, 6 e 12 meses a partir da primeira data. A opção “Para sempre” cria aulas com até 90 dias de antecedência e amplia esse horizonte quando a agenda é consultada. Aulas agendadas vencidas passam a concluídas quando a agenda ou os detalhes da aula são consultados.
+Os tipos de agendamento são reposição, recorrente e experimental. A experimental é uma aula única; a reposição deve partir de uma aula marcada como reagendada. As recorrentes são semanais: todos os dias selecionados usam o mesmo horário. Mês, trimestre, semestre e ano correspondem a 1, 3, 6 e 12 meses a partir da primeira data. A opção “Para sempre” cria aulas com até 90 dias de antecedência e amplia esse horizonte quando a agenda é consultada. Aulas agendadas vencidas passam a concluídas quando a agenda ou os detalhes da aula são consultados.
+
+Antes de publicar a nova versão, aplique uma vez `migration_tipos_aula.sql` no PostgreSQL:
+
+```powershell
+psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f migration_tipos_aula.sql
+```
+
+O tema é texto livre e opcional, informado ao agendar ou editar uma aula. A aplicação não usa mais o cadastro prévio de temas. A tabela antiga e seus dados são mantidos no banco sem uso pela aplicação; a migração não os apaga.
+
+Para armazenar links do Google Meet nas aulas e nas recorrências, aplique também:
+
+```powershell
+psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f migration_link_meet.sql
+```
+
+## Materiais e videoaulas
+
+Ao cadastrar um material, o professor informa o link de uma pasta do Google Drive, em vez de enviar arquivos. É necessário compartilhar a pasta no próprio Drive com os alunos que devem acessá-la.
+
+O link opcional do Google Meet pode ser informado ao agendar ou editar uma aula. Para aulas recorrentes, o link é guardado na recorrência e incluído também nas próximas aulas geradas. A aplicação aceita links HTTPS de `meet.google.com` e links de pasta HTTPS de `drive.google.com`.
