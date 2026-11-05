@@ -1728,6 +1728,55 @@ def gerenciar_professores():
     )
 
 
+@app.route('/professores/<int:id_professor>/administrador', methods=['POST'])
+@admin_required
+def alternar_administrador_professor(id_professor):
+    if id_professor == session.get('user_id'):
+        flash('Seu próprio acesso de administrador não pode ser alterado por aqui.', 'warning')
+        return redirect(url_for('gerenciar_professores'))
+
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("""
+            SELECT id_professor
+            FROM Professor
+            WHERE is_admin = TRUE
+            ORDER BY id_professor
+            FOR UPDATE
+        """)
+        administradores = cursor.fetchall()
+
+        cursor.execute(
+            "SELECT is_admin FROM Professor WHERE id_professor = %s",
+            (id_professor,),
+        )
+        professor = cursor.fetchone()
+
+        if professor is None:
+            mensagem = ('Professor não encontrado.', 'danger')
+        elif professor[0] and len(administradores) <= 1:
+            mensagem = ('Não é permitido remover o último administrador.', 'warning')
+        else:
+            novo_status = not professor[0]
+            cursor.execute(
+                "UPDATE Professor SET is_admin = %s WHERE id_professor = %s",
+                (novo_status, id_professor),
+            )
+            conexao.commit()
+            mensagem = (
+                'Professor promovido a administrador com sucesso.'
+                if novo_status else 'Acesso de administrador removido do professor.',
+                'success' if novo_status else 'info',
+            )
+    finally:
+        cursor.close()
+        conexao.close()
+
+    flash(*mensagem)
+    return redirect(url_for('gerenciar_professores'))
+
+
 @app.route('/professores/editar/<int:id_professor>', methods=['GET'])
 @admin_required
 def editar_professor_form(id_professor):

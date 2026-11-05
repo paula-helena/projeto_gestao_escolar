@@ -44,7 +44,7 @@
                             {% if is_admin %}
                                 <td>{{ 'Administrador' if professor[6] else 'Professor' }}</td>
                                 <td class="text-center">
-                                    <div class="btn-group" role="group">
+                                    <div class="d-flex flex-wrap justify-content-center gap-1">
                                         <a href="{{ url_for('editar_professor_form', id_professor=professor[0]) }}"
                                            class="btn btn-sm btn-outline-warning">Editar</a>
                                         <form action="{{ url_for('excluir_professor', id_professor=professor[0]) }}"
@@ -52,6 +52,16 @@
                                               onsubmit="return confirm('Tem certeza que deseja excluir este professor?');">
                                             <button type="submit" class="btn btn-sm btn-outline-danger">Excluir</button>
                                         </form>
+                                        {% if professor[0] != session.get('user_id') %}
+                                            <form action="{{ url_for('alternar_administrador_professor', id_professor=professor[0]) }}"
+                                                  method="POST"
+                                                  onsubmit="return confirm('{{ 'Remover o acesso de administrador deste professor?' if professor[6] else 'Tornar este professor administrador?' }}');">
+                                                <button type="submit"
+                                                        class="btn btn-sm {{ 'btn-outline-secondary' if professor[6] else 'btn-outline-success' }}">
+                                                    {{ 'Remover Administrador' if professor[6] else 'Tornar Administrador' }}
+                                                </button>
+                                            </form>
+                                        {% endif %}
                                     </div>
                                 </td>
                             {% endif %}
