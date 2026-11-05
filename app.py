@@ -609,6 +609,68 @@ def home_aluno():
     return render_template('home_aluno.html')
 
 
+@app.route('/alterar-senha', methods=['GET', 'POST'])
+@login_required()
+def alterar_senha():
+    if request.method == 'POST':
+        senha_atual = request.form.get('senha_atual') or ''
+        nova_senha = request.form.get('nova_senha') or ''
+        confirmacao = request.form.get('confirmacao') or ''
+        if len(nova_senha) < 8:
+            flash('A nova senha precisa ter pelo menos 8 caracteres.', 'warning')
+            return render_template('alterar_senha.html')
+        if nova_senha != confirmacao:
+            flash('As senhas informadas não coincidem.', 'warning')
+            return render_template('alterar_senha.html')
+
+        perfil = session.get('perfil')
+        tabela, coluna_id = {
+            'ALUNO': ('public.aluno', 'id_aluno'),
+            'PROFESSOR': ('public.professor', 'id_professor'),
+        }.get(perfil, (None, None))
+        if not tabela:
+            flash('Não foi possível identificar seu perfil.', 'danger')
+            return redirect(url_for('login'))
+
+        conexao = psycopg2.connect(DATABASE_URL)
+        cursor = conexao.cursor()
+        try:
+            cursor.execute(
+                f"SELECT senha FROM {tabela} WHERE {coluna_id} = %s",
+                (session['user_id'],),
+            )
+            registro = cursor.fetchone()
+            senha_banco = registro[0] if registro else ''
+            if senha_banco.startswith(('$2b$', '$2a$')):
+                senha_valida = bcrypt.check_password_hash(senha_banco, senha_atual)
+            else:
+                senha_valida = senha_banco == senha_atual
+            if not senha_valida:
+                flash('A senha atual está incorreta.', 'danger')
+                return render_template('alterar_senha.html')
+
+            senha_hash = bcrypt.generate_password_hash(nova_senha).decode('utf-8')
+            cursor.execute(
+                f"UPDATE {tabela} SET senha = %s WHERE {coluna_id} = %s",
+                (senha_hash, session['user_id']),
+            )
+            conexao.commit()
+        except Exception:
+            conexao.rollback()
+            app.logger.exception('Erro ao alterar senha do usuário autenticado.')
+            flash('Não foi possível alterar a senha. Tente novamente.', 'danger')
+            return render_template('alterar_senha.html')
+        finally:
+            cursor.close()
+            conexao.close()
+
+        flash('Sua senha foi alterada com sucesso.', 'success')
+        destino = 'home_professor' if perfil == 'PROFESSOR' else 'home_aluno'
+        return redirect(url_for(destino))
+
+    return render_template('alterar_senha.html')
+
+
 
 
 # ==================================================
@@ -1191,7 +1253,21 @@ def listar_materiais():
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
     try:
-        cursor.execute("SELECT id_material, titulo, descricao, link_arquivo FROM Material_Didatico")
+        if session.get('perfil') == 'ALUNO':
+            cursor.execute("""
+                SELECT DISTINCT m.id_material, m.titulo, m.descricao, m.link_arquivo
+                FROM public.material_didatico AS m
+                JOIN public.aula_material AS am ON am.id_material = m.id_material
+                JOIN public.aula_aluno AS aa ON aa.id_aula = am.id_aula
+                WHERE aa.id_aluno = %s
+                ORDER BY m.titulo
+            """, (session['user_id'],))
+        else:
+            cursor.execute("""
+                SELECT id_material, titulo, descricao, link_arquivo
+                FROM public.material_didatico
+                ORDER BY titulo
+            """)
         materiais = cursor.fetchall()
         return render_template('materiais.html', materiais=materiais)
     finally:
@@ -1205,11 +1281,25 @@ def abrir_material(id_material):
     conexao = psycopg2.connect(DATABASE_URL)
     cursor = conexao.cursor()
     try:
-        cursor.execute("""
-            SELECT link_arquivo
-            FROM public.material_didatico
-            WHERE id_material = %s
-        """, (id_material,))
+        if session.get('perfil') == 'ALUNO':
+            cursor.execute("""
+                SELECT m.link_arquivo
+                FROM public.material_didatico AS m
+                WHERE m.id_material = %s
+                  AND EXISTS (
+                      SELECT 1
+                      FROM public.aula_material AS am
+                      JOIN public.aula_aluno AS aa ON aa.id_aula = am.id_aula
+                      WHERE am.id_material = m.id_material
+                        AND aa.id_aluno = %s
+                  )
+            """, (id_material, session['user_id']))
+        else:
+            cursor.execute("""
+                SELECT link_arquivo
+                FROM public.material_didatico
+                WHERE id_material = %s
+            """, (id_material,))
         registro = cursor.fetchone()
     finally:
         cursor.close()
@@ -1271,6 +1361,17 @@ def novo_material():
 # ==================================================
 @app.route('/cadastro')
 def pagina_cadastro():
+    if session.get('perfil') == 'ALUNO':
+        return redirect(url_for('home_aluno'))
+    if session.get('perfil') != 'PROFESSOR':
+        return render_template('cadastro_aluno.html')
+    return render_template('selecionar_cadastro.html')
+
+
+@app.route('/cadastro-aluno')
+def pagina_cadastro_aluno():
+    if session.get('perfil') == 'ALUNO':
+        return redirect(url_for('home_aluno'))
     return render_template('cadastro_aluno.html')
 
 

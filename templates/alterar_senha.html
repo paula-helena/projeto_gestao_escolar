@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Mudar senha - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center my-4">
+    <div class="col-12 col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+                <h1 class="h3 text-primary fw-bold mb-3">Mudar senha</h1>
+                <p class="text-secondary">Informe sua senha atual e escolha uma nova senha com pelo menos 8 caracteres.</p>
+                <form method="POST" action="{{ url_for('alterar_senha') }}">
+                    <div class="mb-3">
+                        <label class="form-label" for="senha_atual">Senha atual</label>
+                        <input class="form-control" type="password" id="senha_atual" name="senha_atual"
+                               autocomplete="current-password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="nova_senha">Nova senha</label>
+                        <input class="form-control" type="password" id="nova_senha" name="nova_senha"
+                               minlength="8" autocomplete="new-password" required>
+                    </div>
+                    <div class="mb-4">
+                        <label class="form-label" for="confirmacao">Confirme a nova senha</label>
+                        <input class="form-control" type="password" id="confirmacao" name="confirmacao"
+                               minlength="8" autocomplete="new-password" required>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-primary" type="submit">Salvar nova senha</button>
+                        <a class="btn btn-outline-secondary"
+                           href="{{ url_for('home_professor' if session.get('perfil') == 'PROFESSOR' else 'home_aluno') }}">
+                            Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

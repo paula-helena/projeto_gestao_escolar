@@ -27,7 +27,7 @@
 
 
                     <div class="alert alert-info" role="note">
-                        A senha inicial é <strong>mrdave</strong>. O professor poderá criar uma senha pessoal pela opção “Esqueci minha senha”.
+                        A senha inicial é <strong>mrdave</strong>. Depois de entrar, o professor poderá criar uma senha pessoal pela opção “Mudar senha”.
                     </div>
                     <div class="mb-3">
                         <label for="disciplina" class="form-label fw-semibold">Disciplina</label>
@@ -195,7 +195,7 @@
             const resultado = await resposta.json();
 
             if (resposta.status === 201) {
-                alert("Professor cadastrado com sucesso! A senha inicial é mrdave. Ele poderá criar uma senha pessoal pela opção “Esqueci minha senha”.");
+                alert("Professor cadastrado com sucesso! Depois de entrar, poderá criar uma senha pessoal pela opção “Mudar senha”.");
                 document.getElementById('formCadastro').reset();
                
                 // Desbloqueia os campos de endereço caso queira cadastrar outro em seguida
