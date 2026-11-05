@@ -34,7 +34,7 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertIn('Gerenciar Professores', pagina)
         self.assertIn('Mudar Senha', pagina)
         self.assertIn('Agendar Nova Aula', pagina)
-        self.assertIn('Adicionar Material', pagina)
+        self.assertNotIn('Adicionar Material', pagina)
         self.assertIn('Calendário de Aulas', pagina)
         self.assertNotIn('Agenda de aulas', pagina)
         self.assertNotIn('href="/aulas">', pagina)
@@ -48,6 +48,56 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertNotIn('Minhas aulas', resposta.get_data(as_text=True))
         self.assertNotIn('href="/aulas">', resposta.get_data(as_text=True))
 
+    @patch('app.psycopg2.connect')
+    def test_tela_gerenciar_alunos_exibe_botao_de_cadastro_apenas_para_admin(
+        self, conectar
+    ):
+        cursor = Mock()
+        cursor.fetchall.return_value = [(7, 'Aluna Teste', 'aluna@example.com', 'São Paulo', 'SP')]
+        conexao = Mock()
+        conexao.cursor.return_value = cursor
+        conectar.return_value = conexao
+        self.autenticar('PROFESSOR', is_admin=True)
+
+        resposta = self.client.get('/alunos')
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('Cadastrar Aluno', resposta.get_data(as_text=True))
+        self.assertIn('/cadastro-aluno', resposta.get_data(as_text=True))
+
+    @patch('app.psycopg2.connect')
+    def test_tela_gerenciar_professores_exibe_botao_de_cadastro_apenas_para_admin(
+        self, conectar
+    ):
+        cursor = Mock()
+        cursor.fetchall.return_value = [
+            (9, 'Professor Teste', 'professor@example.com', 'Inglês', 'São Paulo', 'SP', False)
+        ]
+        conexao = Mock()
+        conexao.cursor.return_value = cursor
+        conectar.return_value = conexao
+        self.autenticar('PROFESSOR', is_admin=True)
+
+        resposta = self.client.get('/professores')
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('Cadastrar Professor', resposta.get_data(as_text=True))
+        self.assertIn('/cadastro-professor', resposta.get_data(as_text=True))
+
+    @patch('app.psycopg2.connect')
+    def test_professor_comum_pode_consultar_alunos_sem_botao_cadastrar(self, conectar):
+        cursor = Mock()
+        cursor.fetchall.return_value = []
+        conexao = Mock()
+        conexao.cursor.return_value = cursor
+        conectar.return_value = conexao
+        self.autenticar('PROFESSOR')
+
+        resposta = self.client.get('/alunos')
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotIn('Cadastrar Aluno', resposta.get_data(as_text=True))
+
     def test_barra_e_home_do_aluno_mostram_apenas_rotas_de_aluno(self):
         self.autenticar('ALUNO')
         resposta = self.client.get('/home-aluno')
@@ -59,6 +109,7 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertIn('Calendário de Aulas', pagina)
         self.assertIn('Materiais Das Minhas Aulas', pagina)
         self.assertIn('Mudar Senha', pagina)
+        self.assertNotIn('Adicionar Material', pagina)
         self.assertNotIn('Gerenciar Alunos', pagina)
         self.assertNotIn('Agendar Nova Aula', pagina)
         self.assertNotIn('Minhas aulas', pagina)

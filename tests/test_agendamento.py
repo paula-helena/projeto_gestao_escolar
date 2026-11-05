@@ -224,6 +224,16 @@ class AgendaRouteTests(unittest.TestCase):
         self.assertEqual(mes.status_code, 200)
         self.assertIn('Novembro 2026', mes.get_data(as_text=True))
 
+    def test_calendario_do_aluno_abre_sem_erro(self):
+        conexao = FakeConnection()
+        with self.client.session_transaction() as state:
+            state.update(user_id=7, perfil='ALUNO')
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.get('/calendario?visualizacao=mes&data=2026-11-02')
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('Calendário de Aulas', resposta.get_data(as_text=True))
+        self.assertIn('Professor Teste', resposta.get_data(as_text=True))
+
     def test_aula_experimental_sem_tema_pode_ser_agendada(self):
         conexao = FakeConnection()
         with patch.object(app.psycopg2, 'connect', return_value=conexao):
