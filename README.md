@@ -43,13 +43,14 @@ psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f migration_tipos_aula.sql
 
 O tema é texto livre e opcional, informado ao agendar ou editar uma aula. A aplicação não usa mais o cadastro prévio de temas. A tabela antiga e seus dados são mantidos no banco sem uso pela aplicação; a migração não os apaga.
 
-## Arquivos de materiais
+Para armazenar links do Google Meet nas aulas e nas recorrências, aplique também:
 
-O professor pode anexar PDF, PPT ou PPTX de até 25 MB ao cadastrar um material. Os arquivos são privados no armazenamento e são servidos por links assinados que expiram em 10 minutos. Links externos HTTP/HTTPS continuam aceitos. Configure um bucket privado em armazenamento compatível com S3 e defina no Render:
+```powershell
+psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f migration_link_meet.sql
+```
 
-- `S3_BUCKET`: nome do bucket.
-- `S3_REGION`: região do bucket (padrão `us-east-1`).
-- `S3_ACCESS_KEY_ID` e `S3_SECRET_ACCESS_KEY`: credenciais de acesso restrito ao bucket.
-- `S3_ENDPOINT_URL`: endpoint do provedor S3-compatible; deixe vazio para AWS S3.
+## Materiais e videoaulas
 
-Não salve credenciais no código nem no repositório. Sem a configuração S3, links externos continuam funcionando, mas o envio de anexos fica indisponível.
+Ao cadastrar um material, o professor informa o link de uma pasta do Google Drive, em vez de enviar arquivos. É necessário compartilhar a pasta no próprio Drive com os alunos que devem acessá-la.
+
+O link opcional do Google Meet pode ser informado ao agendar ou editar uma aula. Para aulas recorrentes, o link é guardado na recorrência e incluído também nas próximas aulas geradas. A aplicação aceita links HTTPS de `meet.google.com` e links de pasta HTTPS de `drive.google.com`.

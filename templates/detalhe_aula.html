@@ -18,6 +18,11 @@
         </p>
         <p class="mb-1"><strong>Data:</strong> {{ aula[1].strftime('%d/%m/%Y %H:%M') }}</p>
         <p class="mb-1"><strong>Status:</strong> {{ aula[3] }}</p>
+        {% if aula[10] %}
+            <p class="mb-1"><strong>Videoaula:</strong>
+                <a href="{{ aula[10] }}" target="_blank" rel="noopener noreferrer">Abrir no Google Meet</a>
+            </p>
+        {% endif %}
         {% if aula[5] %}<p class="mb-1"><strong>Aluno:</strong> {{ aula[5] }}</p>{% endif %}
         <p class="mb-0"><strong>Professor:</strong> {{ aula[4] }}</p>
     </div>

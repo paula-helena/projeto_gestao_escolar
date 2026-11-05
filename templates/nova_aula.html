@@ -57,16 +57,18 @@
                     </div>
 
                     <div class="mb-3">
-                        <label for="id_aluno" class="form-label fw-semibold">Aluno</label>
-                        <select class="form-select" id="id_aluno" name="id_aluno" required>
-                            <option value="" disabled selected>Selecione um aluno...</option>
+                        <label for="aluno_pesquisa" class="form-label fw-semibold">Aluno</label>
+                        <input class="form-control" type="search" id="aluno_pesquisa"
+                               list="lista_alunos" placeholder="Digite o nome para pesquisar"
+                               autocomplete="off" required>
+                        <datalist id="lista_alunos">
                             {% for aluno in alunos %}
-                                <option value="{{ aluno[0] }}"
-                                    {% if reposicao and reposicao[2] == aluno[0] %}selected{% endif %}>
-                                    {{ aluno[1] }}
-                                </option>
+                                <option value="{{ aluno[1] }}{% if aluno[2] %} — {{ aluno[2] }}{% endif %}"
+                                        data-id="{{ aluno[0] }}"></option>
                             {% endfor %}
-                        </select>
+                        </datalist>
+                        <input type="hidden" id="id_aluno" name="id_aluno"
+                               value="{{ reposicao[2] if reposicao and reposicao[2] else '' }}">
                         <div class="form-text" id="alunoReposicaoAjuda" hidden>
                             A reposição ficará vinculada ao mesmo aluno da aula original.
                         </div>
@@ -77,6 +79,14 @@
                         <input type="text" class="form-control" id="tema" name="tema"
                                maxlength="150" value="{{ reposicao[1] if reposicao else '' }}"
                                placeholder="Digite o tema da aula">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="link_aula" class="form-label fw-semibold">
+                            Link da videoaula no Google Meet (opcional)
+                        </label>
+                        <input type="url" class="form-control" id="link_aula" name="link_aula"
+                               maxlength="255" placeholder="https://meet.google.com/...">
                     </div>
 
                     <div class="mb-3">
@@ -137,8 +147,18 @@
     const opcoesReposicao = document.getElementById('opcoesReposicao');
     const campoReposicao = document.getElementById('reposicao_de');
     const campoAluno = document.getElementById('id_aluno');
+    const pesquisaAluno = document.getElementById('aluno_pesquisa');
+    const opcoesAlunos = document.querySelectorAll('#lista_alunos option');
     const ajudaAlunoReposicao = document.getElementById('alunoReposicaoAjuda');
     let alunoPreenchidoPorReposicao = false;
+
+    function atualizarAlunoSelecionado() {
+        const opcao = Array.from(opcoesAlunos).find(item => item.value === pesquisaAluno.value);
+        campoAluno.value = opcao ? opcao.dataset.id : '';
+        pesquisaAluno.setCustomValidity(
+            pesquisaAluno.value && !opcao ? 'Selecione um aluno da lista.' : ''
+        );
+    }
 
     function atualizarModoAgendamento() {
         const recorrente = document.getElementById('modoRecorrente').checked;
@@ -152,19 +172,29 @@
         campoReposicao.disabled = !reposicao;
         campoReposicao.required = reposicao;
         if (reposicao && alunoOrigem) {
-            campoAluno.value = alunoOrigem;
+            const opcaoAluno = Array.from(opcoesAlunos).find(
+                item => item.dataset.id === alunoOrigem
+            );
+            pesquisaAluno.value = opcaoAluno ? opcaoAluno.value : '';
+            campoAluno.value = opcaoAluno ? opcaoAluno.dataset.id : '';
             alunoPreenchidoPorReposicao = true;
         } else if (alunoPreenchidoPorReposicao) {
+            pesquisaAluno.value = '';
             campoAluno.value = '';
             alunoPreenchidoPorReposicao = false;
         }
-        campoAluno.disabled = reposicao && Boolean(alunoOrigem);
-        campoAluno.required = !(reposicao && Boolean(alunoOrigem));
+        pesquisaAluno.disabled = reposicao && Boolean(alunoOrigem);
+        pesquisaAluno.required = !(reposicao && Boolean(alunoOrigem));
         ajudaAlunoReposicao.hidden = !(reposicao && Boolean(alunoOrigem));
+        if (!(reposicao && Boolean(alunoOrigem))) {
+            atualizarAlunoSelecionado();
+        }
     }
 
     radiosModo.forEach(radio => radio.addEventListener('change', atualizarModoAgendamento));
     campoReposicao.addEventListener('change', atualizarModoAgendamento);
+    pesquisaAluno.addEventListener('input', atualizarAlunoSelecionado);
+    document.querySelector('form').addEventListener('submit', atualizarAlunoSelecionado);
     atualizarModoAgendamento();
 </script>
 {% endblock %}

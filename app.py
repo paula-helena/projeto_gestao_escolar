@@ -4,15 +4,10 @@ import hashlib
 import secrets
 import smtplib
 import ssl
-import uuid
-import zipfile
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from email.message import EmailMessage
-from urllib.parse import quote, urlsplit
-import boto3
-from botocore.config import Config
-from botocore.exceptions import BotoCoreError, ClientError
+from urllib.parse import urlsplit
 from flask import (
     Flask, request, jsonify, render_template, redirect, url_for, session, flash,
     get_flashed_messages,
@@ -21,8 +16,6 @@ import psycopg2
 from flask_bcrypt import Bcrypt
 from functools import wraps
 from dotenv import load_dotenv
-from werkzeug.exceptions import RequestEntityTooLarge
-from werkzeug.utils import secure_filename
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -35,7 +28,6 @@ app.secret_key = os.getenv('SECRET_KEY', 'chave_secreta_para_desenvolvimento')
 bcrypt = Bcrypt(app)
 
 SENHA_PADRAO = 'mrdave'
-LIMITE_ARQUIVO_BYTES = 25 * 1024 * 1024
 app.config.update(
     SMTP_SERVER=os.getenv('SMTP_SERVER'),
     SMTP_PORT=int(os.getenv('SMTP_PORT', '587')),
@@ -45,93 +37,41 @@ app.config.update(
     SMTP_USE_SSL=os.getenv('SMTP_USE_SSL', 'false').lower() == 'true',
     SMTP_FROM_EMAIL=os.getenv('SMTP_FROM_EMAIL'),
     PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL'),
-    S3_BUCKET=os.getenv('S3_BUCKET'),
-    S3_REGION=os.getenv('S3_REGION', 'us-east-1'),
-    S3_ENDPOINT_URL=os.getenv('S3_ENDPOINT_URL'),
-    S3_ACCESS_KEY_ID=os.getenv('S3_ACCESS_KEY_ID'),
-    S3_SECRET_ACCESS_KEY=os.getenv('S3_SECRET_ACCESS_KEY'),
-    MAX_CONTENT_LENGTH=LIMITE_ARQUIVO_BYTES + 1024 * 1024,
 )
 
 
-def cliente_armazenamento():
-    configuracoes = (
-        app.config['S3_BUCKET'],
-        app.config['S3_ACCESS_KEY_ID'],
-        app.config['S3_SECRET_ACCESS_KEY'],
-    )
-    if not all(configuracoes):
-        raise RuntimeError('O armazenamento S3 não está configurado.')
-
-    return boto3.client(
-        's3',
-        region_name=app.config['S3_REGION'],
-        endpoint_url=app.config['S3_ENDPOINT_URL'] or None,
-        aws_access_key_id=app.config['S3_ACCESS_KEY_ID'],
-        aws_secret_access_key=app.config['S3_SECRET_ACCESS_KEY'],
-        config=Config(
-            signature_version='s3v4',
-            s3={'addressing_style': 'path' if app.config['S3_ENDPOINT_URL'] else 'auto'},
-        ),
-    )
-
-
-def validar_arquivo_material(arquivo):
-    nome = secure_filename(arquivo.filename or '')
-    extensao = os.path.splitext(nome)[1].lower()
-    tipos = {
-        '.pdf': ('application/pdf', b'%PDF-'),
-        '.ppt': ('application/vnd.ms-powerpoint', b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'),
-        '.pptx': (
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            b'PK\x03\x04',
-        ),
-    }
-    if not nome or extensao not in tipos:
-        raise ValueError('Anexe um arquivo PDF, PPT ou PPTX.')
-
-    arquivo.stream.seek(0, os.SEEK_END)
-    tamanho = arquivo.stream.tell()
-    arquivo.stream.seek(0)
-    if tamanho > LIMITE_ARQUIVO_BYTES:
-        raise ValueError('O arquivo deve ter no máximo 25 MB.')
-
-    tipo, assinatura = tipos[extensao]
-    cabecalho = arquivo.stream.read(8)
-    arquivo.stream.seek(0)
-    if not cabecalho.startswith(assinatura):
-        raise ValueError('O conteúdo do arquivo não corresponde à extensão informada.')
-
-    if extensao == '.pptx':
-        try:
-            with zipfile.ZipFile(arquivo.stream) as pacote:
-                arquivos = set(pacote.namelist())
-        except zipfile.BadZipFile as erro:
-            raise ValueError('O arquivo PPTX está inválido.') from erro
-        finally:
-            arquivo.stream.seek(0)
-        if '[Content_Types].xml' not in arquivos or 'ppt/presentation.xml' not in arquivos:
-            raise ValueError('O arquivo não contém uma apresentação PPTX válida.')
-
-    return nome, extensao, tipo
-
-
-def excluir_arquivo_armazenado(chave):
-    if chave:
-        cliente_armazenamento().delete_object(
-            Bucket=app.config['S3_BUCKET'],
-            Key=chave,
+def validar_link_google_drive(valor):
+    try:
+        partes = urlsplit(valor)
+        caminho = partes.path.split('/')
+        posicao_pasta = caminho.index('folders') if 'folders' in caminho else -1
+        return (
+            partes.scheme == 'https'
+            and partes.hostname == 'drive.google.com'
+            and partes.port in (None, 443)
+            and partes.username is None
+            and partes.password is None
+            and posicao_pasta >= 0
+            and bool(caminho[posicao_pasta + 1:])
+            and bool(caminho[posicao_pasta + 1])
         )
+    except ValueError:
+        return False
 
 
-@app.errorhandler(RequestEntityTooLarge)
-def arquivo_material_muito_grande(_erro):
-    app.logger.warning(
-        'Requisição de arquivo excedeu o limite de tamanho (HTTP %s).',
-        _erro.code,
-    )
-    flash('O arquivo excede o limite de 25 MB.', 'danger')
-    return render_template('novo_material.html'), 413
+def validar_link_google_meet(valor):
+    try:
+        partes = urlsplit(valor)
+        return (
+            partes.scheme == 'https'
+            and partes.hostname == 'meet.google.com'
+            and partes.port in (None, 443)
+            and partes.username is None
+            and partes.password is None
+            and bool(partes.path.strip('/'))
+        )
+    except ValueError:
+        return False
 
 
 def enviar_email_redefinicao(destinatario, link):
@@ -205,7 +145,7 @@ def expandir_recorrencias(cursor, perfil, user_id, data_limite):
     filtro = 'id_professor = %s' if perfil == 'PROFESSOR' else 'id_aluno = %s'
     cursor.execute(f"""
         SELECT id_recorrencia, id_professor, id_aluno, tema, inicio, hora,
-               dias_semana, fim_em, gerada_ate
+               dias_semana, fim_em, gerada_ate, link_aula
         FROM public.aula_recorrencia
         WHERE ativa = TRUE AND {filtro}
         ORDER BY id_recorrencia
@@ -215,7 +155,7 @@ def expandir_recorrencias(cursor, perfil, user_id, data_limite):
 
     for recorrencia in recorrencias:
         (id_recorrencia, id_professor, id_aluno, tema, inicio, horario,
-         dias_semana, fim_em, gerada_ate) = recorrencia
+         dias_semana, fim_em, gerada_ate, link_aula) = recorrencia
         limite = data_limite
         if fim_em:
             limite = min(limite, fim_em)
@@ -236,13 +176,13 @@ def expandir_recorrencias(cursor, perfil, user_id, data_limite):
                 cursor.execute("""
                     INSERT INTO public.aula (
                         id_professor, tema, data_hora, status, id_recorrencia,
-                        tipo_aula
+                        tipo_aula, link_aula
                     )
-                    VALUES (%s, %s, %s, 'AGENDADA', %s, 'RECORRENTE')
+                    VALUES (%s, %s, %s, 'AGENDADA', %s, 'RECORRENTE', %s)
                     ON CONFLICT (id_recorrencia, data_hora)
                     WHERE id_recorrencia IS NOT NULL DO NOTHING
                     RETURNING id_aula
-                """, (id_professor, tema, data_hora, id_recorrencia))
+                """, (id_professor, tema, data_hora, id_recorrencia, link_aula))
                 aula = cursor.fetchone()
                 if aula:
                     id_aula = aula[0]
@@ -286,17 +226,17 @@ def materiais_selecionados(cursor, ids_materiais, id_professor):
 
 def criar_aula(cursor, id_professor, id_aluno, tema, data_hora,
                id_recorrencia=None, id_aula_origem=None, ids_materiais=(),
-               tipo_aula='EXPERIMENTAL'):
+               tipo_aula='EXPERIMENTAL', link_aula=None):
     cursor.execute("""
         INSERT INTO public.aula (
             id_professor, tema, data_hora, status, id_recorrencia,
-            id_aula_origem, tipo_aula
+            id_aula_origem, tipo_aula, link_aula
         )
-        VALUES (%s, %s, %s, 'AGENDADA', %s, %s, %s)
+        VALUES (%s, %s, %s, 'AGENDADA', %s, %s, %s, %s)
         RETURNING id_aula
     """, (
         id_professor, tema or None, data_hora, id_recorrencia, id_aula_origem,
-        tipo_aula,
+        tipo_aula, link_aula,
     ))
     id_aula = cursor.fetchone()[0]
 
@@ -717,7 +657,7 @@ def nova_aula():
             """, (session['user_id'],))
             origens_reposicao = cursor.fetchall()
 
-            cursor.execute("SELECT id_aluno, nome FROM public.aluno ORDER BY nome")
+            cursor.execute("SELECT id_aluno, nome, email FROM public.aluno ORDER BY nome")
             alunos = cursor.fetchall()
             cursor.execute("""
                 SELECT id_material, titulo
@@ -747,6 +687,11 @@ def nova_aula():
         tema = request.form.get('tema', '').strip() or None
         if tema and len(tema) > 150:
             raise ValueError('O tema deve ter no máximo 150 caracteres.')
+        link_aula = request.form.get('link_aula', '').strip() or None
+        if link_aula and len(link_aula) > 255:
+            raise ValueError('O link do Google Meet deve ter no máximo 255 caracteres.')
+        if link_aula and not validar_link_google_meet(link_aula):
+            raise ValueError('Informe um link válido do Google Meet.')
 
         id_aula_origem = (
             request.form.get('reposicao_de', type=int)
@@ -813,14 +758,14 @@ def nova_aula():
             cursor.execute("""
                 INSERT INTO public.aula_recorrencia (
                     id_professor, id_aluno, tema, inicio, hora,
-                    dias_semana, fim_em, gerada_ate
+                    dias_semana, fim_em, gerada_ate, link_aula
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id_recorrencia
             """, (
                 session['user_id'], id_aluno, tema, data_hora.date(),
                 data_hora.time(), dias_semana, fim_em,
-                data_hora.date() - timedelta(days=1),
+                data_hora.date() - timedelta(days=1), link_aula,
             ))
             id_recorrencia = cursor.fetchone()[0]
             for id_material in ids_materiais:
@@ -850,6 +795,7 @@ def nova_aula():
                 id_aula_origem=id_aula_origem,
                 ids_materiais=ids_materiais,
                 tipo_aula=modo.upper(),
+                link_aula=link_aula,
             )
             mensagem = (
                 'Aula de reposição agendada com sucesso!'
@@ -962,7 +908,7 @@ def editar_aula_form(id_aula):
     cursor = conexao.cursor()
     try:
         cursor.execute("""
-            SELECT id_aula, data_hora, tema, status
+            SELECT id_aula, data_hora, tema, status, link_aula
             FROM public.aula
             WHERE id_aula = %s AND id_professor = %s
         """, (id_aula, session['user_id']))
@@ -984,6 +930,13 @@ def atualizar_aula(id_aula):
     if tema and len(tema) > 150:
         flash('O tema deve ter no máximo 150 caracteres.', 'warning')
         return redirect(url_for('editar_aula_form', id_aula=id_aula))
+    link_aula = request.form.get('link_aula', '').strip() or None
+    if link_aula and len(link_aula) > 255:
+        flash('O link do Google Meet deve ter no máximo 255 caracteres.', 'warning')
+        return redirect(url_for('editar_aula_form', id_aula=id_aula))
+    if link_aula and not validar_link_google_meet(link_aula):
+        flash('Informe um link válido do Google Meet.', 'warning')
+        return redirect(url_for('editar_aula_form', id_aula=id_aula))
     status = request.form.get('status')
     if status not in ('AGENDADA', 'CONCLUIDA', 'CANCELADA', 'REAGENDADA'):
         flash('Status de aula inválido.', 'warning')
@@ -999,13 +952,14 @@ def atualizar_aula(id_aula):
     try:
         cursor.execute("""
             UPDATE public.aula
-            SET tema = %s, data_hora = %s, status = %s
+            SET tema = %s, data_hora = %s, status = %s, link_aula = %s
             WHERE id_aula = %s AND id_professor = %s
             RETURNING id_aula
         """, (
             tema,
             data_hora,
             status,
+            link_aula,
             id_aula,
             session['user_id'],
         ))
@@ -1120,7 +1074,8 @@ def detalhes_aula(id_aula):
         cursor.execute("""
             SELECT a.id_aula, a.data_hora, a.tema, a.status,
                    p.nome, al.nome, aa.nota_autoavaliacao,
-                   aa.nota_oficial, COALESCE(aa.revisar, FALSE), a.tipo_aula
+                   aa.nota_oficial, COALESCE(aa.revisar, FALSE), a.tipo_aula,
+                   a.link_aula
             FROM public.aula AS a
             JOIN public.professor AS p ON p.id_professor = a.id_professor
             LEFT JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
@@ -1265,27 +1220,6 @@ def abrir_material(id_material):
         return redirect(url_for('listar_materiais'))
 
     link_arquivo = registro[0] or ''
-    if link_arquivo.startswith('s3://'):
-        chave = link_arquivo[5:]
-        if not chave.startswith('materiais/'):
-            app.logger.error('Chave S3 inválida para o material %s.', id_material)
-            flash('Não foi possível abrir o arquivo.', 'danger')
-            return redirect(url_for('listar_materiais'))
-        try:
-            url = cliente_armazenamento().generate_presigned_url(
-                'get_object',
-                Params={
-                    'Bucket': app.config['S3_BUCKET'],
-                    'Key': chave,
-                },
-                ExpiresIn=600,
-            )
-        except (BotoCoreError, ClientError, RuntimeError):
-            app.logger.exception('Erro ao criar link temporário para material %s.', id_material)
-            flash('Não foi possível abrir o arquivo. Tente novamente mais tarde.', 'danger')
-            return redirect(url_for('listar_materiais'))
-        return redirect(url)
-
     partes_url = urlsplit(link_arquivo)
     if partes_url.scheme not in ('http', 'https') or not partes_url.netloc:
         flash('O link deste material é inválido.', 'danger')
@@ -1300,80 +1234,35 @@ def novo_material():
     if request.method == 'POST':
         titulo = (request.form.get('titulo') or '').strip()
         descricao = (request.form.get('descricao') or '').strip()
-        link_externo = (request.form.get('link_arquivo') or '').strip()
-        arquivo = request.files.get('arquivo')
-        arquivo_tem_conteudo = bool(arquivo and arquivo.filename)
-        chave_armazenada = None
-        arquivo_enviado = False
-        conexao = None
-        cursor = None
+        link_arquivo = (request.form.get('link_arquivo') or '').strip()
+        if not titulo or not descricao:
+            flash('Informe o título e a descrição do material.', 'warning')
+            return redirect(url_for('novo_material'))
+        if len(link_arquivo) > 255:
+            flash('O link da pasta deve ter no máximo 255 caracteres.', 'warning')
+            return redirect(url_for('novo_material'))
+        if not validar_link_google_drive(link_arquivo):
+            flash('Informe o link HTTPS de uma pasta do Google Drive.', 'warning')
+            return redirect(url_for('novo_material'))
+
+        conexao = psycopg2.connect(DATABASE_URL)
+        cursor = conexao.cursor()
         try:
-            if not titulo or not descricao:
-                raise ValueError('Informe o título e a descrição do material.')
-            if not arquivo_tem_conteudo and not link_externo:
-                raise ValueError('Anexe um PDF/PPT/PPTX ou informe um link.')
-            if arquivo_tem_conteudo and link_externo:
-                raise ValueError('Escolha anexar um arquivo ou informar um link, não ambos.')
-
-            if arquivo_tem_conteudo:
-                nome, extensao, tipo = validar_arquivo_material(arquivo)
-                chave_armazenada = f'materiais/{uuid.uuid4().hex}{extensao}'
-                cliente_armazenamento().upload_fileobj(
-                    arquivo.stream,
-                    app.config['S3_BUCKET'],
-                    chave_armazenada,
-                    ExtraArgs={
-                        'ContentType': tipo,
-                        'ContentDisposition': (
-                            f"attachment; filename*=UTF-8''{quote(nome)}"
-                        ),
-                    },
-                )
-                arquivo_enviado = True
-                link_arquivo = f's3://{chave_armazenada}'
-            else:
-                partes_url = urlsplit(link_externo)
-                if partes_url.scheme not in ('http', 'https') or not partes_url.netloc:
-                    raise ValueError('Informe um link HTTP ou HTTPS válido.')
-                link_arquivo = link_externo
-
-            conexao = psycopg2.connect(DATABASE_URL)
-            cursor = conexao.cursor()
             cursor.execute("""
                 INSERT INTO public.material_didatico
                     (id_professor, titulo, descricao, link_arquivo)
                 VALUES (%s, %s, %s, %s)
-            """, (session.get('user_id'), titulo, descricao, link_arquivo))
+            """, (session['user_id'], titulo, descricao, link_arquivo))
             conexao.commit()
             flash('Material adicionado com sucesso!', 'success')
             return redirect(url_for('listar_materiais'))
-        except ValueError as erro:
-            if conexao is not None:
-                conexao.rollback()
-            if arquivo_enviado:
-                try:
-                    excluir_arquivo_armazenado(chave_armazenada)
-                except (BotoCoreError, ClientError, RuntimeError):
-                    app.logger.exception('Erro ao limpar arquivo após upload inválido.')
-            flash(str(erro), 'warning')
-            return redirect(url_for('novo_material'))
-        except (psycopg2.Error, BotoCoreError, ClientError, RuntimeError):
-            if conexao is not None:
-                conexao.rollback()
-            app.logger.exception('Erro ao salvar material didático.')
-            if arquivo_enviado:
-                try:
-                    excluir_arquivo_armazenado(chave_armazenada)
-                except (BotoCoreError, ClientError, RuntimeError):
-                    app.logger.exception('Erro ao limpar arquivo após falha ao salvar material.')
-            flash('Não foi possível salvar o material. Verifique a configuração e tente novamente.', 'danger')
-            return redirect(url_for('novo_material'))
+        except Exception:
+            conexao.rollback()
+            raise
         finally:
-            if cursor is not None:
-                cursor.close()
-            if conexao is not None:
-                conexao.close()
-            
+            cursor.close()
+            conexao.close()
+
     return render_template('novo_material.html')
 
 

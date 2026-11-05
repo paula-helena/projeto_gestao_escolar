@@ -85,6 +85,7 @@ CREATE TABLE Aula_Recorrencia (
     tema VARCHAR(150),
     inicio DATE NOT NULL,
     hora TIME NOT NULL,
+    link_aula VARCHAR(255),
     dias_semana INTEGER[] NOT NULL,
     fim_em DATE,
     gerada_ate DATE NOT NULL,

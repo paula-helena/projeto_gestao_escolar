@@ -8,10 +8,10 @@
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
                 <h3 class="card-title text-center mb-4 text-primary fw-bold">
-                    <i class="bi bi-cloud-arrow-up me-2"></i>Adicionar Material
+                    <i class="bi bi-link-45deg me-2"></i>Adicionar Material
                 </h3>
                 
-                <form action="{{ url_for('novo_material') }}" method="POST" enctype="multipart/form-data">
+                <form action="{{ url_for('novo_material') }}" method="POST">
                     
                     <!-- Campo: Título -->
                     <div class="mb-3">
@@ -26,17 +26,11 @@
                     </div>
 
                     <div class="mb-4">
-                        <label for="arquivo" class="form-label fw-semibold">Anexar arquivo</label>
-                        <input type="file" class="form-control" id="arquivo" name="arquivo"
-                               accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">
-                        <div class="form-text">Formatos aceitos: PDF, PPT ou PPTX. Tamanho máximo: 25 MB.</div>
-                    </div>
-
-                    <div class="mb-4">
-                        <label for="link_arquivo" class="form-label fw-semibold">Ou informe um link</label>
+                        <label for="link_arquivo" class="form-label fw-semibold">Link da pasta do Google Drive</label>
                         <input type="url" class="form-control" id="link_arquivo" name="link_arquivo"
-                               placeholder="https://...">
-                        <div class="form-text">Anexe um arquivo ou informe um link externo, não os dois.</div>
+                               required maxlength="255"
+                               placeholder="https://drive.google.com/drive/folders/...">
+                        <div class="form-text">Compartilhe a pasta do Drive com as pessoas que precisam acessar o material.</div>
                     </div>
 
                     <!-- Botões de Ação -->

@@ -40,6 +40,7 @@ class AgendamentoTests(unittest.TestCase):
             def __init__(self):
                 self.ultima_consulta = ''
                 self.inseridos = []
+                self.links = []
                 self.atualizacao = None
                 self.proximo_id = 1
 
@@ -47,6 +48,7 @@ class AgendamentoTests(unittest.TestCase):
                 self.ultima_consulta = consulta
                 if 'INSERT INTO public.aula (' in consulta:
                     self.inseridos.append(parametros[2])
+                    self.links.append(parametros[4])
                     self.proximo_id += 1
                 if 'UPDATE public.aula_recorrencia' in consulta:
                     self.atualizacao = parametros
@@ -56,6 +58,7 @@ class AgendamentoTests(unittest.TestCase):
                     return [(
                         10, 4, 8, 'Conversação', date(2026, 11, 2),
                         time(20, 0), [1, 3], None, date(2026, 11, 1),
+                        'https://meet.google.com/abc-defg-hij',
                     )]
                 return []
 
@@ -72,6 +75,10 @@ class AgendamentoTests(unittest.TestCase):
             cursor.inseridos,
             [datetime(2026, 11, 2, 20), datetime(2026, 11, 4, 20)],
         )
+        self.assertEqual(cursor.links, [
+            'https://meet.google.com/abc-defg-hij',
+            'https://meet.google.com/abc-defg-hij',
+        ])
         self.assertEqual(
             cursor.ultima_consulta.strip().splitlines()[0],
             'UPDATE public.aula_recorrencia',
@@ -98,8 +105,8 @@ class FakeCursor:
         self.result_all = []
         sql = ' '.join(query.split())
 
-        if 'SELECT id_aluno, nome FROM public.aluno' in sql:
-            self.result_all = [(7, 'Aluno Teste')]
+        if 'SELECT id_aluno, nome, email FROM public.aluno' in sql:
+            self.result_all = [(7, 'Aluno Teste', 'aluno@example.com')]
         elif 'SELECT id_material, titulo' in sql:
             self.result_all = []
         elif 'SELECT 1 FROM public.aluno' in sql:
@@ -116,7 +123,7 @@ class FakeCursor:
                 params = self.recorrencia
                 self.result_all = [(
                     44, params[0], params[1], params[2], params[3], params[4],
-                    params[5], params[6], params[7],
+                    params[5], params[6], params[7], params[8],
                 )]
         elif 'RETURNING id_aula' in sql:
             self.next_aula_id += 1
@@ -130,7 +137,12 @@ class FakeCursor:
             self.result_one = (
                 55, datetime(2026, 11, 2, 20), None, 'AGENDADA',
                 'Professor Teste', 'Aluno Teste', Decimal('8'), Decimal('9'),
-                True, 'EXPERIMENTAL',
+                True, 'EXPERIMENTAL', 'https://meet.google.com/abc-defg-hij',
+            )
+        elif 'SELECT id_aula, data_hora, tema, status, link_aula' in sql:
+            self.result_one = (
+                55, datetime(2026, 11, 2, 20), 'Conversação', 'AGENDADA',
+                'https://meet.google.com/abc-defg-hij',
             )
         elif 'SELECT a.id_aula, a.data_hora, a.tema, a.status' in sql:
             self.result_all = [(
@@ -188,6 +200,9 @@ class AgendaRouteTests(unittest.TestCase):
         self.assertIn('Recorrente', pagina)
         self.assertIn('Experimental', pagina)
         self.assertIn('type="text"', pagina)
+        self.assertIn('Digite o nome para pesquisar', pagina)
+        self.assertIn('aluno@example.com', pagina)
+        self.assertIn('Google Meet', pagina)
         self.assertIn('Para sempre', pagina)
 
     def test_aula_experimental_sem_tema_pode_ser_agendada(self):
@@ -197,6 +212,7 @@ class AgendaRouteTests(unittest.TestCase):
                 'modo': 'experimental',
                 'id_aluno': '7',
                 'tema': '',
+                'link_aula': 'https://meet.google.com/abc-defg-hij',
                 'data_hora': '2026-11-03T20:00',
             })
         self.assertEqual(resposta.status_code, 302)
@@ -206,7 +222,70 @@ class AgendaRouteTests(unittest.TestCase):
             if 'INSERT INTO public.aula (' in query
         )
         self.assertIsNone(insercao[1][1])
-        self.assertEqual(insercao[1][-1], 'EXPERIMENTAL')
+        self.assertEqual(insercao[1][-2:], (
+            'EXPERIMENTAL', 'https://meet.google.com/abc-defg-hij'
+        ))
+
+    def test_link_que_nao_e_google_meet_e_recusado(self):
+        conexao = FakeConnection()
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.post('/aulas/nova', data={
+                'modo': 'experimental',
+                'id_aluno': '7',
+                'tema': '',
+                'link_aula': 'https://exemplo.com/reuniao',
+                'data_hora': '2026-11-03T20:00',
+            }, follow_redirects=True)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('link válido do Google Meet', resposta.get_data(as_text=True))
+        self.assertFalse(any(
+            'INSERT INTO public.aula (' in query
+            for query, _ in conexao.fake_cursor.queries
+        ))
+
+    def test_link_google_meet_acima_do_limite_e_recusado(self):
+        conexao = FakeConnection()
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.post('/aulas/nova', data={
+                'modo': 'experimental',
+                'id_aluno': '7',
+                'tema': '',
+                'link_aula': f"https://meet.google.com/{'a' * 250}",
+                'data_hora': '2026-11-03T20:00',
+            }, follow_redirects=True)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('no máximo 255 caracteres', resposta.get_data(as_text=True))
+        self.assertFalse(any(
+            'INSERT INTO public.aula (' in query
+            for query, _ in conexao.fake_cursor.queries
+        ))
+
+    def test_formulario_de_edicao_mostra_link_google_meet_atual(self):
+        conexao = FakeConnection()
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.get('/aulas/editar/55')
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('https://meet.google.com/abc-defg-hij', resposta.get_data(as_text=True))
+
+    def test_edicao_salva_link_google_meet(self):
+        conexao = FakeConnection()
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.post('/aulas/atualizar/55', data={
+                'tema': 'Conversação',
+                'data_hora': '2026-11-03T20:00',
+                'status': 'AGENDADA',
+                'link_aula': 'https://meet.google.com/abc-defg-hij',
+            })
+
+        self.assertEqual(resposta.status_code, 302)
+        parametros = next(
+            parametros for query, parametros in conexao.fake_cursor.queries
+            if 'SET tema = %s' in query
+        )
+        self.assertEqual(parametros[3], 'https://meet.google.com/abc-defg-hij')
 
     def test_tipo_de_agendamento_invalido_e_recusado(self):
         conexao = FakeConnection()
@@ -231,6 +310,7 @@ class AgendaRouteTests(unittest.TestCase):
                 'modo': 'recorrente',
                 'id_aluno': '7',
                 'tema': '',
+                'link_aula': 'https://meet.google.com/abc-defg-hij',
                 'data_hora': '2026-11-02T20:00',
                 'dias_semana': ['1', '3'],
                 'duracao': 'mes',
@@ -250,6 +330,18 @@ class AgendaRouteTests(unittest.TestCase):
         )
         self.assertIn('tipo_aula', consulta_aula)
         self.assertIn("'RECORRENTE'", consulta_aula)
+        parametros_recorrencia = next(
+            parametros for query, parametros in conexao.fake_cursor.queries
+            if 'INSERT INTO public.aula_recorrencia (' in query
+        )
+        self.assertEqual(
+            parametros_recorrencia[-1], 'https://meet.google.com/abc-defg-hij'
+        )
+        self.assertTrue(all(
+            parametros[-1] == 'https://meet.google.com/abc-defg-hij'
+            for query, parametros in conexao.fake_cursor.queries
+            if 'INSERT INTO public.aula (' in query
+        ))
 
     def test_reposicao_e_vinculada_a_aula_de_origem(self):
         conexao = FakeConnection()
@@ -269,8 +361,9 @@ class AgendaRouteTests(unittest.TestCase):
             if 'INSERT INTO public.aula (' in query
         ]
         self.assertEqual(len(insercoes_aula), 1)
-        self.assertEqual(insercoes_aula[0][-2], 55)
-        self.assertEqual(insercoes_aula[0][-1], 'REPOSICAO')
+        self.assertEqual(insercoes_aula[0][-3], 55)
+        self.assertEqual(insercoes_aula[0][-2], 'REPOSICAO')
+        self.assertIsNone(insercoes_aula[0][-1])
         self.assertFalse(any(
             'INSERT INTO public.aula_recorrencia' in query
             for query, _ in conexao.fake_cursor.queries
@@ -323,6 +416,7 @@ class AgendaRouteTests(unittest.TestCase):
         self.assertIn('anotação privada de teste', pagina)
         self.assertIn('Autoavaliação do aluno', pagina)
         self.assertIn('Nota do professor', pagina)
+        self.assertIn('Abrir no Google Meet', pagina)
 
     def test_anotacao_privada_e_consultada_por_perfil_e_usuario(self):
         conexao = FakeConnection()

@@ -21,6 +21,15 @@
                                maxlength="150" value="{{ aula[2] or '' }}">
                     </div>
 
+                    <div class="mb-3">
+                        <label for="link_aula" class="form-label fw-semibold">
+                            Link da videoaula no Google Meet (opcional)
+                        </label>
+                        <input type="url" class="form-control" id="link_aula" name="link_aula"
+                               maxlength="255" value="{{ aula[4] or '' }}"
+                               placeholder="https://meet.google.com/...">
+                    </div>
+
 
                     <!-- Campo: Data e Hora -->
                     <div class="mb-3">
