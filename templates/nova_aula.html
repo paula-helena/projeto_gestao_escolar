@@ -22,18 +22,18 @@
                     <fieldset class="mb-4">
                         <legend class="form-label fw-semibold">Tipo de agendamento</legend>
                         <div class="form-check">
+                            <input class="form-check-input" type="radio" name="modo" id="modoRecorrente"
+                                   value="recorrente" {% if not reposicao %}checked{% endif %}>
+                            <label class="form-check-label" for="modoRecorrente">Recorrente</label>
+                        </div>
+                        <div class="form-check">
                             <input class="form-check-input" type="radio" name="modo" id="modoReposicao"
                                    value="reposicao" {% if reposicao %}checked{% endif %}>
                             <label class="form-check-label" for="modoReposicao">Reposição</label>
                         </div>
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" name="modo" id="modoRecorrente"
-                                   value="recorrente">
-                            <label class="form-check-label" for="modoRecorrente">Recorrente</label>
-                        </div>
-                        <div class="form-check">
                             <input class="form-check-input" type="radio" name="modo" id="modoExperimental"
-                                   value="experimental" {% if not reposicao %}checked{% endif %}>
+                                   value="experimental">
                             <label class="form-check-label" for="modoExperimental">Experimental</label>
                         </div>
                     </fieldset>

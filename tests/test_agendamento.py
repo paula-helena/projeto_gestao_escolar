@@ -204,6 +204,9 @@ class AgendaRouteTests(unittest.TestCase):
         self.assertIn('aluno@example.com', pagina)
         self.assertIn('Google Meet', pagina)
         self.assertIn('Para sempre', pagina)
+        self.assertIn('value="recorrente" checked', pagina)
+        self.assertLess(pagina.index('value="recorrente"'), pagina.index('value="reposicao"'))
+        self.assertLess(pagina.index('value="reposicao"'), pagina.index('value="experimental"'))
 
     def test_aula_experimental_sem_tema_pode_ser_agendada(self):
         conexao = FakeConnection()

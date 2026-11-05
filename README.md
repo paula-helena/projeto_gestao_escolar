@@ -54,3 +54,7 @@ psql $env:DATABASE_URL -v ON_ERROR_STOP=1 -f migration_link_meet.sql
 Ao cadastrar um material, o professor informa o link de uma pasta do Google Drive, em vez de enviar arquivos. É necessário compartilhar a pasta no próprio Drive com os alunos que devem acessá-la.
 
 O link opcional do Google Meet pode ser informado ao agendar ou editar uma aula. Para aulas recorrentes, o link é guardado na recorrência e incluído também nas próximas aulas geradas. A aplicação aceita links HTTPS de `meet.google.com` e links de pasta HTTPS de `drive.google.com`.
+
+## Navegação e senhas
+
+O menu superior oferece a Home, o acesso a novos cadastros para professores e o menu de navegação. As opções são filtradas pelo perfil. A Home do aluno mostra somente a agenda e os materiais vinculados às aulas dele. Alunos e professores podem alterar a senha depois de entrar, pelo item “Mudar senha” no menu; é necessário informar a senha atual e definir uma nova com pelo menos oito caracteres.

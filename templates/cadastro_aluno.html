@@ -22,7 +22,7 @@
                     </div>
 
                     <div class="alert alert-info" role="note">
-                        A senha inicial é <strong>mrdave</strong>. Depois, use “Esqueci minha senha” na tela de login para criar uma senha pessoal.
+                        A senha inicial é <strong>mrdave</strong>. Depois de entrar, use “Mudar senha” no menu para criar sua senha pessoal.
                     </div>
 
                     <hr class="my-4">
@@ -135,7 +135,7 @@
         })
         .then(response => {
             if (response.ok) {
-                alert('Cadastro realizado com sucesso! A senha inicial é mrdave. Depois de entrar, use “Esqueci minha senha” para criar uma senha pessoal.');
+                alert('Cadastro realizado com sucesso! A senha inicial é mrdave. Depois de entrar, use “Mudar senha” no menu para criar sua senha pessoal.');
                 window.location.href = '/login'; // Redireciona para o login
             } else {
                 response.json().then(data => alert('Erro: ' + data.erro));
