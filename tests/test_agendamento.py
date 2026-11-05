@@ -219,6 +219,8 @@ class AgendaRouteTests(unittest.TestCase):
             mes = self.client.get('/calendario?visualizacao=mes&data=2026-11-02')
         self.assertEqual(semana.status_code, 200)
         self.assertIn('02/11/2026 – 08/11/2026', semana.get_data(as_text=True))
+        self.assertIn('Detalhes Da Aula', semana.get_data(as_text=True))
+        self.assertIn('Editar Aula', semana.get_data(as_text=True))
         self.assertEqual(mes.status_code, 200)
         self.assertIn('Novembro 2026', mes.get_data(as_text=True))
 

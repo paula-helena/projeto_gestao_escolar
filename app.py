@@ -750,7 +750,7 @@ def nova_aula():
                 reposicao = cursor.fetchone()
                 if not reposicao:
                     flash('Aula de origem não está disponível para reposição.', 'warning')
-                    return redirect(url_for('listar_aulas'))
+                    return redirect(url_for('calendario_aulas'))
 
             cursor.execute("""
                 SELECT a.id_aula, a.data_hora, a.tema, al.id_aluno, al.nome,
@@ -934,7 +934,7 @@ def nova_aula():
 
         conexao.commit()
         flash(mensagem, 'success')
-        return redirect(url_for('listar_aulas'))
+        return redirect(url_for('calendario_aulas'))
     except ValueError as erro:
         conexao.rollback()
         flash(str(erro), 'warning')
@@ -1145,7 +1145,7 @@ def editar_aula_form(id_aula):
         aula = cursor.fetchone()
         if not aula:
             flash('Aula não encontrada.', 'danger')
-            return redirect(url_for('listar_aulas'))
+            return redirect(url_for('calendario_aulas'))
 
         return render_template('editar_aula.html', aula=aula)
     finally:
@@ -1196,10 +1196,10 @@ def atualizar_aula(id_aula):
         if not cursor.fetchone():
             conexao.rollback()
             flash('Aula não encontrada.', 'danger')
-            return redirect(url_for('listar_aulas'))
+            return redirect(url_for('calendario_aulas'))
         conexao.commit()
         flash('Aula atualizada com sucesso!', 'success')
-        return redirect(url_for('listar_aulas'))
+        return redirect(url_for('calendario_aulas'))
     except Exception:
         conexao.rollback()
         raise
@@ -1223,7 +1223,7 @@ def excluir_aula(id_aula):
         else:
             conexao.commit()
             flash('Aula excluída com sucesso!', 'info')
-        return redirect(url_for('listar_aulas'))
+        return redirect(url_for('calendario_aulas'))
     except Exception:
         conexao.rollback()
         raise
@@ -1249,7 +1249,7 @@ def cancelar_aula(id_aula):
         else:
             conexao.commit()
             flash('Aula cancelada.', 'info')
-        return redirect(url_for('listar_aulas'))
+        return redirect(url_for('calendario_aulas'))
     except Exception:
         conexao.rollback()
         raise
@@ -1276,7 +1276,7 @@ def iniciar_reagendamento(id_aula):
         """, (id_aula, session['user_id']))
         if cursor.rowcount == 0:
             flash('Aula não encontrada ou já possui reposição.', 'warning')
-            return redirect(url_for('listar_aulas'))
+            return redirect(url_for('calendario_aulas'))
         conexao.commit()
         return redirect(url_for('nova_aula', reposicao_de=id_aula))
     except Exception:
@@ -1320,7 +1320,7 @@ def detalhes_aula(id_aula):
         aula = cursor.fetchone()
         if not aula:
             flash('Aula não encontrada ou sem permissão de acesso.', 'warning')
-            return redirect(url_for('listar_aulas'))
+            return redirect(url_for('calendario_aulas'))
 
         if request.method == 'POST':
             anotacao = request.form.get('anotacao', '').strip()

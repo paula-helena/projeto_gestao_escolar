@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Agenda de Aulas - Mr. Dave Idiomas{% endblock %}
+{% block title %}Aulas - Mr. Dave Idiomas{% endblock %}
 
 {% block content %}
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-    <h2 class="text-primary fw-bold mb-0">Agenda de Aulas</h2>
+    <h2 class="text-primary fw-bold mb-0">Aulas</h2>
     {% if session.get('perfil') == 'PROFESSOR' %}
-        <a href="{{ url_for('nova_aula') }}" class="btn btn-primary fw-bold">Agendar aula</a>
+        <a href="{{ url_for('nova_aula') }}" class="btn btn-primary fw-bold">Agendar Nova Aula</a>
     {% endif %}
 </div>
 
