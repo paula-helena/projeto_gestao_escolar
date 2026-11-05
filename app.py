@@ -2,7 +2,10 @@ import os
 import calendar
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from flask import Flask, request, jsonify, render_template, redirect, url_for, session, flash
+from flask import (
+    Flask, request, jsonify, render_template, redirect, url_for, session, flash,
+    get_flashed_messages,
+)
 import psycopg2
 from flask_bcrypt import Bcrypt
 from functools import wraps
@@ -215,6 +218,11 @@ def home():
 # ==================================================
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if 'user_id' in session:
+        if session.get('perfil') == 'PROFESSOR':
+            return redirect(url_for('home_professor'))
+        return redirect(url_for('home_aluno'))
+
     if request.method == 'POST':
         email = request.form.get('email')
         senha = request.form.get('senha')
@@ -264,10 +272,14 @@ def login():
                     session['email'] = usuario[2]
                     session['perfil'] = perfil
 
+                    get_flashed_messages()
                     flash(f'Bem-vindo(a), {usuario[1]}!', 'success')
-
-                    # Redireciona ambos os perfis para a rota unificada listar_aulas
-                    return redirect(url_for('listar_aulas'))
+                    destino = (
+                        'home_professor'
+                        if perfil == 'PROFESSOR'
+                        else 'home_aluno'
+                    )
+                    return redirect(url_for(destino))
 
             # Se não encontrou o usuário ou a senha estava incorreta
             flash('E-mail ou senha incorretos. Tente novamente.', 'danger')
