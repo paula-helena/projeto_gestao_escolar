@@ -3,12 +3,17 @@
 {% block title %}Gerenciamento de Alunos - Mr. Dave Idiomas{% endblock %}
 
 {% block content %}
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-    <h1 class="h2 text-primary fw-bold mb-0">Gerenciamento de Alunos</h1>
+<div class="row mb-4 align-items-center">
+    <div class="col">
+        <h2 class="text-primary fw-bold mb-0">Gerenciamento de Alunos</h2>
+        <p class="text-muted mt-1 mb-0">Consulte e gerencie os alunos cadastrados na plataforma.</p>
+    </div>
     {% if is_admin %}
-        <a href="{{ url_for('pagina_cadastro_aluno') }}" class="btn btn-primary fw-bold">
-            <i class="bi bi-person-plus me-1" aria-hidden="true"></i> Cadastrar Aluno
-        </a>
+        <div class="col-auto">
+            <a href="{{ url_for('pagina_cadastro_aluno') }}" class="btn btn-primary fw-bold shadow-sm">
+                <i class="bi bi-person-plus me-1" aria-hidden="true"></i> Cadastrar Aluno
+            </a>
+        </div>
     {% endif %}
 </div>
 
