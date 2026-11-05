@@ -9,7 +9,7 @@
     <div class="col-12">
         <h2 class="text-primary fw-bold mb-4">Gerenciamento de Professores</h2>
        
-        <!-- Formulário de Cadastro -->
+        {% if is_admin %}
         <div class="card shadow-sm border-0 mb-5">
             <div class="card-body p-4">
                 <h4 class="card-title mb-3 fw-semibold text-secondary">Cadastrar Novo Professor</h4>
@@ -28,6 +28,10 @@
 
                     <div class="alert alert-info" role="note">
                         A senha inicial é <strong>mrdave</strong>. Depois de entrar, o professor poderá criar uma senha pessoal pela opção “Mudar senha”.
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="is_admin">
+                        <label class="form-check-label" for="is_admin">Conceder permissões de administrador</label>
                     </div>
                     <div class="mb-3">
                         <label for="disciplina" class="form-label fw-semibold">Disciplina</label>
@@ -77,6 +81,7 @@
                 </form>
             </div>
         </div>
+        {% endif %}
 
 
         <!-- Tabela de Listagem -->
@@ -92,7 +97,8 @@
                                 <th scope="col">E-mail</th>
                                 <th scope="col">Disciplina</th>
                                 <th scope="col">Cidade/UF</th>
-                                <th scope="col" class="text-center">Ações</th>
+                                {% if is_admin %}<th scope="col">Acesso</th>{% endif %}
+                                {% if is_admin %}<th scope="col" class="text-center">Ações</th>{% endif %}
                             </tr>
                         </thead>
                         <tbody>
@@ -103,21 +109,24 @@
                                     <td>{{ prof[2] }}</td>
                                     <td>{{ prof[3] }}</td>
                                     <td>{{ prof[4] }}/{{ prof[5] }}</td>
-                                    <td class="text-center">
-                                        <div class="btn-group" role="group">
-                                            <a href="/professores/editar/{{ prof[0] }}" class="btn btn-sm btn-outline-warning" title="Editar">
-                                                Editar
-                                            </a>
-                                            <form action="/professores/excluir/{{ prof[0] }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este professor?');">
-                                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-0 rounded-end">Excluir</button>
-                                            </form>
-                                        </div>
-                                    </td>
+                                    {% if is_admin %}
+                                        <td>{{ 'Administrador' if prof[6] else 'Professor' }}</td>
+                                    {% endif %}
+                                    {% if is_admin %}
+                                        <td class="text-center">
+                                            <div class="btn-group" role="group">
+                                                <a href="/professores/editar/{{ prof[0] }}" class="btn btn-sm btn-outline-warning" title="Editar">Editar</a>
+                                                <form action="/professores/excluir/{{ prof[0] }}" method="POST" class="d-inline" onsubmit="return confirm('Tem certeza que deseja excluir este professor?');">
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-0 rounded-end">Excluir</button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">Nenhum professor cadastrado até o momento.</td>
+                                    <td colspan="{{ 6 if is_admin else 4 }}" class="text-center text-muted py-4">Nenhum professor cadastrado até o momento.</td>
                                 </tr>
                             {% endif %}
                         </tbody>
@@ -131,6 +140,7 @@
 </div>
 
 
+{% if is_admin %}
 <script>
     // 1. Automação ViaCEP com Sanitização (RN08)
     const campoCep = document.getElementById('cep');
@@ -180,7 +190,8 @@
             cidade: document.getElementById('cidade').value,
             uf: document.getElementById('uf').value,
             numero: document.getElementById('numero').value,
-            complemento: document.getElementById('complemento').value // Campo incluído aqui
+            complemento: document.getElementById('complemento').value,
+            is_admin: document.getElementById('is_admin').checked
         };
 
 
@@ -210,6 +221,7 @@
         }
     });
 </script>
+{% endif %}
 
 
 

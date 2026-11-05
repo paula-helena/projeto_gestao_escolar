@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Calendário de Aulas - Mr. Dave Idiomas{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <h1 class="h2 fw-bold text-primary mb-0">Calendário de Aulas</h1>
+    <div class="btn-group" role="group" aria-label="Tipo de visualização">
+        <a class="btn btn-outline-primary {% if visualizacao == 'semana' %}active{% endif %}"
+           href="{{ url_for('calendario_aulas', visualizacao='semana', data=inicio.isoformat()) }}">Semanal</a>
+        <a class="btn btn-outline-primary {% if visualizacao == 'mes' %}active{% endif %}"
+           href="{{ url_for('calendario_aulas', visualizacao='mes', data=inicio.isoformat()) }}">Mensal</a>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('calendario_aulas', visualizacao=visualizacao, data=anterior.isoformat()) }}"
+       aria-label="Período anterior">&larr; Anterior</a>
+    <h2 class="h4 text-center mb-0">{{ titulo }}</h2>
+    <a class="btn btn-outline-secondary"
+       href="{{ url_for('calendario_aulas', visualizacao=visualizacao, data=proximo.isoformat()) }}"
+       aria-label="Próximo período">Próximo &rarr;</a>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-bordered align-middle">
+        <thead class="table-light">
+            <tr>
+                {% for nome in ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'] %}
+                    <th scope="col" class="text-center">{{ nome }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for semana in dias %}
+                <tr>
+                    {% for dia in semana %}
+                        <td class="p-2" style="min-width: 145px; height: 130px; vertical-align: top;
+                            {% if visualizacao == 'mes' and dia.month != inicio.month %}background-color: #f5f5f5;{% endif %}">
+                            <div class="fw-semibold mb-2">{{ dia.day }}</div>
+                            {% for aula in aulas_por_data.get(dia, []) %}
+                                <div class="small border rounded p-2 mb-2 bg-light">
+                                    <div class="fw-semibold">{{ aula[1].strftime('%H:%M') }} — {{ aula[2] or 'Sem tema' }}</div>
+                                    {% if perfil == 'PROFESSOR' %}
+                                        <div>{{ aula[4] or 'Aluno não vinculado' }}</div>
+                                    {% else %}
+                                        <div>Prof. {{ aula[5] }}</div>
+                                    {% endif %}
+                                    <div class="text-muted">{{ aula[3] | title }}</div>
+                                    {% if aula[6] %}
+                                        <a href="{{ aula[6] }}" target="_blank" rel="noopener noreferrer">Abrir Meet</a>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                        </td>
+                    {% endfor %}
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -10,6 +10,15 @@
 
 <div class="row g-4">
     <div class="col-12 col-md-6">
+        <a class="card h-100 shadow-sm text-decoration-none" href="{{ url_for('calendario_aulas') }}">
+            <div class="card-body">
+                <i class="bi bi-calendar3 fs-2 text-primary"></i>
+                <h2 class="h5 mt-3">Calendário de Aulas</h2>
+                <p class="text-secondary mb-0">Visualize suas aulas por semana ou mês.</p>
+            </div>
+        </a>
+    </div>
+    <div class="col-12 col-md-6">
         <a class="card h-100 shadow-sm text-decoration-none" href="{{ url_for('listar_aulas') }}">
             <div class="card-body">
                 <i class="bi bi-calendar-week fs-2 text-primary"></i>

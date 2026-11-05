@@ -12,16 +12,17 @@ class NavegacaoESenhaTests(unittest.TestCase):
     def tearDown(self):
         app.app.config['TESTING'] = False
 
-    def autenticar(self, perfil):
+    def autenticar(self, perfil, is_admin=False):
         with self.client.session_transaction() as sessao:
             sessao.update(
                 user_id=4,
                 perfil=perfil,
                 nome='Usuário Teste',
+                is_admin=is_admin,
             )
 
-    def test_barra_do_professor_tem_home_novo_cadastro_e_menu(self):
-        self.autenticar('PROFESSOR')
+    def test_barra_do_administrador_tem_home_novo_cadastro_e_menu(self):
+        self.autenticar('PROFESSOR', is_admin=True)
         resposta = self.client.get('/home-professor')
         pagina = resposta.get_data(as_text=True)
 
@@ -34,6 +35,14 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertIn('Mudar senha', pagina)
         self.assertIn('Agendar nova aula', pagina)
         self.assertIn('Adicionar material', pagina)
+        self.assertIn('Calendário de Aulas', pagina)
+
+    def test_professor_comum_nao_ve_novo_cadastro(self):
+        self.autenticar('PROFESSOR')
+        resposta = self.client.get('/home-professor')
+        self.assertEqual(resposta.status_code, 200)
+        self.assertNotIn('Novo Cadastro', resposta.get_data(as_text=True))
+        self.assertIn('Calendário de Aulas', resposta.get_data(as_text=True))
 
     def test_barra_e_home_do_aluno_mostram_apenas_rotas_de_aluno(self):
         self.autenticar('ALUNO')
@@ -45,6 +54,7 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.assertNotIn('Novo Cadastro', pagina)
         self.assertIn('Minhas aulas', pagina)
         self.assertIn('Materiais das minhas aulas', pagina)
+        self.assertIn('Calendário de Aulas', pagina)
         self.assertIn('Mudar senha', pagina)
         self.assertNotIn('Gerenciar alunos', pagina)
         self.assertNotIn('Agendar nova aula', pagina)
@@ -159,15 +169,22 @@ class NavegacaoESenhaTests(unittest.TestCase):
         ))
         conexao.commit.assert_not_called()
 
-    def test_novo_cadastro_do_professor_abre_selecao_de_perfil(self):
-        self.autenticar('PROFESSOR')
+    def test_novo_cadastro_do_administrador_abre_selecao_de_perfil(self):
+        self.autenticar('PROFESSOR', is_admin=True)
         resposta = self.client.get('/cadastro')
 
         self.assertEqual(resposta.status_code, 200)
         self.assertIn('Cadastrar Professor', resposta.get_data(as_text=True))
         self.assertIn('Cadastrar Aluno', resposta.get_data(as_text=True))
 
+    def test_professor_comum_nao_acessa_telas_de_cadastro(self):
+        self.autenticar('PROFESSOR')
+        resposta = self.client.get('/cadastro')
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(resposta.location, '/home-professor')
+
     def test_cadastro_de_aluno_tem_rota_direta(self):
+        self.autenticar('PROFESSOR', is_admin=True)
         resposta = self.client.get('/cadastro-aluno')
 
         self.assertEqual(resposta.status_code, 200)

@@ -32,7 +32,7 @@
                                 Home
                             </a>
                         </li>
-                        {% if session.get('perfil') == 'PROFESSOR' %}
+                        {% if session.get('perfil') == 'PROFESSOR' and session.get('is_admin') %}
                             <li class="nav-item">
                                 <a class="nav-link" href="{{ url_for('pagina_cadastro') }}">Novo Cadastro</a>
                             </li>
@@ -46,6 +46,7 @@
                                 {% if session.get('perfil') == 'PROFESSOR' %}
                                     <li><h6 class="dropdown-header">Aulas</h6></li>
                                     <li><a class="dropdown-item" href="{{ url_for('listar_aulas') }}">Agenda de aulas</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('calendario_aulas') }}">Calendário de Aulas</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('nova_aula') }}">Agendar nova aula</a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><h6 class="dropdown-header">Materiais</h6></li>
@@ -55,9 +56,12 @@
                                     <li><h6 class="dropdown-header">Cadastros</h6></li>
                                     <li><a class="dropdown-item" href="{{ url_for('gerenciar_alunos') }}">Gerenciar alunos</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('gerenciar_professores') }}">Gerenciar professores</a></li>
-                                    <li><a class="dropdown-item" href="{{ url_for('pagina_cadastro') }}">Cadastrar aluno ou professor</a></li>
+                                    {% if session.get('is_admin') %}
+                                        <li><a class="dropdown-item" href="{{ url_for('pagina_cadastro') }}">Cadastrar aluno ou professor</a></li>
+                                    {% endif %}
                                 {% else %}
                                     <li><a class="dropdown-item" href="{{ url_for('listar_aulas') }}">Minhas aulas</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('calendario_aulas') }}">Calendário de Aulas</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('listar_materiais') }}">Materiais das minhas aulas</a></li>
                                 {% endif %}
                                 <li><hr class="dropdown-divider"></li>
@@ -72,7 +76,6 @@
                         </li>
                     {% else %}
                         <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
-                        <li class="nav-item"><a class="btn btn-light text-primary fw-bold" href="{{ url_for('pagina_cadastro') }}">Novo Cadastro</a></li>
                     {% endif %}
                 </ul>
             </div>
