@@ -102,8 +102,6 @@ class FakeCursor:
             self.result_all = [(7, 'Aluno Teste')]
         elif 'SELECT id_material, titulo' in sql:
             self.result_all = []
-        elif 'SELECT id_tema, titulo' in sql:
-            self.result_all = []
         elif 'SELECT 1 FROM public.aluno' in sql:
             self.result_one = (1,)
         elif 'SELECT a.tema, aa.id_aluno' in sql:
@@ -131,10 +129,14 @@ class FakeCursor:
         elif 'SELECT a.id_aula, a.data_hora, a.tema, a.status, p.nome' in sql:
             self.result_one = (
                 55, datetime(2026, 11, 2, 20), None, 'AGENDADA',
-                'Professor Teste', 'Aluno Teste', Decimal('8'), Decimal('9'), True,
+                'Professor Teste', 'Aluno Teste', Decimal('8'), Decimal('9'),
+                True, 'EXPERIMENTAL',
             )
         elif 'SELECT a.id_aula, a.data_hora, a.tema, a.status' in sql:
-            self.result_all = []
+            self.result_all = [(
+                55, datetime(2026, 11, 2, 20), 'Recorrência de teste',
+                'AGENDADA', 'Aluno Teste', 'Professor Teste', False, 'RECORRENTE',
+            )]
         elif 'SELECT anotacao FROM public.aula_anotacao' in sql:
             self.result_one = ('anotação privada de teste',)
         elif 'SELECT m.id_material, m.titulo, m.link_arquivo' in sql:
@@ -175,21 +177,24 @@ class AgendaRouteTests(unittest.TestCase):
         with self.client.session_transaction() as state:
             state.update(user_id=4, perfil='PROFESSOR', nome='Professor Teste')
 
-    def test_formulario_oferece_tema_opcional_e_recorrencia(self):
+    def test_formulario_oferece_os_tres_tipos_e_tema_livre_opcional(self):
         conexao = FakeConnection()
         with patch.object(app.psycopg2, 'connect', return_value=conexao):
             resposta = self.client.get('/aulas/nova')
         self.assertEqual(resposta.status_code, 200)
         pagina = resposta.get_data(as_text=True)
         self.assertIn('Tema da aula (opcional)', pagina)
-        self.assertIn('Aula recorrente semanal', pagina)
+        self.assertIn('Reposição', pagina)
+        self.assertIn('Recorrente', pagina)
+        self.assertIn('Experimental', pagina)
+        self.assertIn('type="text"', pagina)
         self.assertIn('Para sempre', pagina)
 
-    def test_aula_avulsa_sem_tema_pode_ser_agendada(self):
+    def test_aula_experimental_sem_tema_pode_ser_agendada(self):
         conexao = FakeConnection()
         with patch.object(app.psycopg2, 'connect', return_value=conexao):
             resposta = self.client.post('/aulas/nova', data={
-                'modo': 'avulsa',
+                'modo': 'experimental',
                 'id_aluno': '7',
                 'tema': '',
                 'data_hora': '2026-11-03T20:00',
@@ -201,6 +206,23 @@ class AgendaRouteTests(unittest.TestCase):
             if 'INSERT INTO public.aula (' in query
         )
         self.assertIsNone(insercao[1][1])
+        self.assertEqual(insercao[1][-1], 'EXPERIMENTAL')
+
+    def test_tipo_de_agendamento_invalido_e_recusado(self):
+        conexao = FakeConnection()
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.post('/aulas/nova', data={
+                'modo': 'avulsa',
+                'id_aluno': '7',
+                'data_hora': '2026-11-03T20:00',
+            }, follow_redirects=True)
+
+        self.assertEqual(resposta.status_code, 200)
+        self.assertIn('tipo de agendamento válido', resposta.get_data(as_text=True))
+        self.assertFalse(any(
+            'INSERT INTO public.aula (' in query
+            for query, _ in conexao.fake_cursor.queries
+        ))
 
     def test_aula_recorrente_gera_ocorrencias_nos_dias_selecionados(self):
         conexao = FakeConnection()
@@ -222,12 +244,18 @@ class AgendaRouteTests(unittest.TestCase):
         self.assertGreater(len(aulas), 0)
         self.assertTrue(all(aula.weekday() in (0, 2) for aula in aulas))
         self.assertTrue(all(aula.time() == time(20, 0) for aula in aulas))
+        consulta_aula = next(
+            query for query, _ in conexao.fake_cursor.queries
+            if 'INSERT INTO public.aula (' in query
+        )
+        self.assertIn('tipo_aula', consulta_aula)
+        self.assertIn("'RECORRENTE'", consulta_aula)
 
-    def test_reposicao_e_avulsa_e_vinculada_a_aula_de_origem(self):
+    def test_reposicao_e_vinculada_a_aula_de_origem(self):
         conexao = FakeConnection()
         with patch.object(app.psycopg2, 'connect', return_value=conexao):
             resposta = self.client.post('/aulas/nova', data={
-                'modo': 'recorrente',
+                'modo': 'reposicao',
                 'reposicao_de': '55',
                 'id_aluno': '7',
                 'tema': '',
@@ -241,7 +269,8 @@ class AgendaRouteTests(unittest.TestCase):
             if 'INSERT INTO public.aula (' in query
         ]
         self.assertEqual(len(insercoes_aula), 1)
-        self.assertEqual(insercoes_aula[0][-1], 55)
+        self.assertEqual(insercoes_aula[0][-2], 55)
+        self.assertEqual(insercoes_aula[0][-1], 'REPOSICAO')
         self.assertFalse(any(
             'INSERT INTO public.aula_recorrencia' in query
             for query, _ in conexao.fake_cursor.queries
@@ -263,6 +292,7 @@ class AgendaRouteTests(unittest.TestCase):
         pagina = resposta.get_data(as_text=True)
         self.assertIn('Aulas do trimestre', pagina)
         self.assertIn('Decrescente', pagina)
+        self.assertIn('Recorrente', pagina)
         consulta_agenda = next(
             query for query, _ in conexao.fake_cursor.queries
             if 'SELECT a.id_aula, a.data_hora, a.tema, a.status' in query

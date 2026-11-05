@@ -11,6 +11,11 @@
 <div class="card shadow-sm border-0 mb-4">
     <div class="card-body">
         <h4>{{ aula[2] or 'Aula sem tema' }}</h4>
+        <p class="mb-3"><strong>Tipo:</strong>
+            {% if aula[9] == 'REPOSICAO' %}Reposição
+            {% elif aula[9] == 'RECORRENTE' %}Recorrente
+            {% else %}Experimental{% endif %}
+        </p>
         <p class="mb-1"><strong>Data:</strong> {{ aula[1].strftime('%d/%m/%Y %H:%M') }}</p>
         <p class="mb-1"><strong>Status:</strong> {{ aula[3] }}</p>
         {% if aula[5] %}<p class="mb-1"><strong>Aluno:</strong> {{ aula[5] }}</p>{% endif %}
@@ -69,7 +74,8 @@
                 <h4 class="card-title">Materiais da aula</h4>
                 {% for material in materiais %}
                     <p class="mb-2">
-                        <a href="{{ material[2] }}" target="_blank" rel="noopener noreferrer">{{ material[1] }}</a>
+                        <a href="{{ url_for('abrir_material', id_material=material[0]) }}"
+                           target="_blank" rel="noopener noreferrer">{{ material[1] }}</a>
                     </p>
                 {% else %}
                     <p class="text-muted mb-0">Nenhum material vinculado a esta aula.</p>

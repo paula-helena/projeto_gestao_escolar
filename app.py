@@ -4,9 +4,15 @@ import hashlib
 import secrets
 import smtplib
 import ssl
+import uuid
+import zipfile
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from email.message import EmailMessage
+from urllib.parse import quote, urlsplit
+import boto3
+from botocore.config import Config
+from botocore.exceptions import BotoCoreError, ClientError
 from flask import (
     Flask, request, jsonify, render_template, redirect, url_for, session, flash,
     get_flashed_messages,
@@ -15,6 +21,8 @@ import psycopg2
 from flask_bcrypt import Bcrypt
 from functools import wraps
 from dotenv import load_dotenv
+from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.utils import secure_filename
 
 # Carrega as variáveis de ambiente do arquivo .env
 load_dotenv()
@@ -27,6 +35,7 @@ app.secret_key = os.getenv('SECRET_KEY', 'chave_secreta_para_desenvolvimento')
 bcrypt = Bcrypt(app)
 
 SENHA_PADRAO = 'mrdave'
+LIMITE_ARQUIVO_BYTES = 25 * 1024 * 1024
 app.config.update(
     SMTP_SERVER=os.getenv('SMTP_SERVER'),
     SMTP_PORT=int(os.getenv('SMTP_PORT', '587')),
@@ -36,7 +45,93 @@ app.config.update(
     SMTP_USE_SSL=os.getenv('SMTP_USE_SSL', 'false').lower() == 'true',
     SMTP_FROM_EMAIL=os.getenv('SMTP_FROM_EMAIL'),
     PUBLIC_BASE_URL=os.getenv('PUBLIC_BASE_URL'),
+    S3_BUCKET=os.getenv('S3_BUCKET'),
+    S3_REGION=os.getenv('S3_REGION', 'us-east-1'),
+    S3_ENDPOINT_URL=os.getenv('S3_ENDPOINT_URL'),
+    S3_ACCESS_KEY_ID=os.getenv('S3_ACCESS_KEY_ID'),
+    S3_SECRET_ACCESS_KEY=os.getenv('S3_SECRET_ACCESS_KEY'),
+    MAX_CONTENT_LENGTH=LIMITE_ARQUIVO_BYTES + 1024 * 1024,
 )
+
+
+def cliente_armazenamento():
+    configuracoes = (
+        app.config['S3_BUCKET'],
+        app.config['S3_ACCESS_KEY_ID'],
+        app.config['S3_SECRET_ACCESS_KEY'],
+    )
+    if not all(configuracoes):
+        raise RuntimeError('O armazenamento S3 não está configurado.')
+
+    return boto3.client(
+        's3',
+        region_name=app.config['S3_REGION'],
+        endpoint_url=app.config['S3_ENDPOINT_URL'] or None,
+        aws_access_key_id=app.config['S3_ACCESS_KEY_ID'],
+        aws_secret_access_key=app.config['S3_SECRET_ACCESS_KEY'],
+        config=Config(
+            signature_version='s3v4',
+            s3={'addressing_style': 'path' if app.config['S3_ENDPOINT_URL'] else 'auto'},
+        ),
+    )
+
+
+def validar_arquivo_material(arquivo):
+    nome = secure_filename(arquivo.filename or '')
+    extensao = os.path.splitext(nome)[1].lower()
+    tipos = {
+        '.pdf': ('application/pdf', b'%PDF-'),
+        '.ppt': ('application/vnd.ms-powerpoint', b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1'),
+        '.pptx': (
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            b'PK\x03\x04',
+        ),
+    }
+    if not nome or extensao not in tipos:
+        raise ValueError('Anexe um arquivo PDF, PPT ou PPTX.')
+
+    arquivo.stream.seek(0, os.SEEK_END)
+    tamanho = arquivo.stream.tell()
+    arquivo.stream.seek(0)
+    if tamanho > LIMITE_ARQUIVO_BYTES:
+        raise ValueError('O arquivo deve ter no máximo 25 MB.')
+
+    tipo, assinatura = tipos[extensao]
+    cabecalho = arquivo.stream.read(8)
+    arquivo.stream.seek(0)
+    if not cabecalho.startswith(assinatura):
+        raise ValueError('O conteúdo do arquivo não corresponde à extensão informada.')
+
+    if extensao == '.pptx':
+        try:
+            with zipfile.ZipFile(arquivo.stream) as pacote:
+                arquivos = set(pacote.namelist())
+        except zipfile.BadZipFile as erro:
+            raise ValueError('O arquivo PPTX está inválido.') from erro
+        finally:
+            arquivo.stream.seek(0)
+        if '[Content_Types].xml' not in arquivos or 'ppt/presentation.xml' not in arquivos:
+            raise ValueError('O arquivo não contém uma apresentação PPTX válida.')
+
+    return nome, extensao, tipo
+
+
+def excluir_arquivo_armazenado(chave):
+    if chave:
+        cliente_armazenamento().delete_object(
+            Bucket=app.config['S3_BUCKET'],
+            Key=chave,
+        )
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def arquivo_material_muito_grande(_erro):
+    app.logger.warning(
+        'Requisição de arquivo excedeu o limite de tamanho (HTTP %s).',
+        _erro.code,
+    )
+    flash('O arquivo excede o limite de 25 MB.', 'danger')
+    return render_template('novo_material.html'), 413
 
 
 def enviar_email_redefinicao(destinatario, link):
@@ -140,9 +235,10 @@ def expandir_recorrencias(cursor, perfil, user_id, data_limite):
                 data_hora = datetime.combine(dia, horario)
                 cursor.execute("""
                     INSERT INTO public.aula (
-                        id_professor, tema, data_hora, status, id_recorrencia
+                        id_professor, tema, data_hora, status, id_recorrencia,
+                        tipo_aula
                     )
-                    VALUES (%s, %s, %s, 'AGENDADA', %s)
+                    VALUES (%s, %s, %s, 'AGENDADA', %s, 'RECORRENTE')
                     ON CONFLICT (id_recorrencia, data_hora)
                     WHERE id_recorrencia IS NOT NULL DO NOTHING
                     RETURNING id_aula
@@ -189,15 +285,18 @@ def materiais_selecionados(cursor, ids_materiais, id_professor):
 
 
 def criar_aula(cursor, id_professor, id_aluno, tema, data_hora,
-               id_recorrencia=None, id_aula_origem=None, ids_materiais=()):
+               id_recorrencia=None, id_aula_origem=None, ids_materiais=(),
+               tipo_aula='EXPERIMENTAL'):
     cursor.execute("""
         INSERT INTO public.aula (
-            id_professor, tema, data_hora, status, id_recorrencia, id_aula_origem
+            id_professor, tema, data_hora, status, id_recorrencia,
+            id_aula_origem, tipo_aula
         )
-        VALUES (%s, %s, %s, 'AGENDADA', %s, %s)
+        VALUES (%s, %s, %s, 'AGENDADA', %s, %s, %s)
         RETURNING id_aula
     """, (
-        id_professor, tema or None, data_hora, id_recorrencia, id_aula_origem
+        id_professor, tema or None, data_hora, id_recorrencia, id_aula_origem,
+        tipo_aula,
     ))
     id_aula = cursor.fetchone()[0]
 
@@ -604,6 +703,20 @@ def nova_aula():
                     flash('Aula de origem não está disponível para reposição.', 'warning')
                     return redirect(url_for('listar_aulas'))
 
+            cursor.execute("""
+                SELECT a.id_aula, a.data_hora, a.tema, al.id_aluno, al.nome
+                FROM public.aula AS a
+                LEFT JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
+                LEFT JOIN public.aluno AS al ON al.id_aluno = aa.id_aluno
+                WHERE a.id_professor = %s AND a.status = 'REAGENDADA'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM public.aula AS reposicao
+                      WHERE reposicao.id_aula_origem = a.id_aula
+                  )
+                ORDER BY a.data_hora DESC, a.id_aula DESC
+            """, (session['user_id'],))
+            origens_reposicao = cursor.fetchall()
+
             cursor.execute("SELECT id_aluno, nome FROM public.aluno ORDER BY nome")
             alunos = cursor.fetchall()
             cursor.execute("""
@@ -613,25 +726,35 @@ def nova_aula():
                 ORDER BY titulo
             """, (session['user_id'],))
             materiais = cursor.fetchall()
-            cursor.execute("SELECT id_tema, titulo FROM public.tema ORDER BY titulo")
-            temas = cursor.fetchall()
             return render_template(
                 'nova_aula.html',
                 alunos=alunos,
-                temas=temas,
                 materiais=materiais,
                 reposicao=reposicao,
+                origens_reposicao=origens_reposicao,
+                id_aula_origem=id_aula_origem,
             )
         finally:
             cursor.close()
             conexao.close()
 
+    id_aula_origem = None
     try:
+        modo = request.form.get('modo')
+        if modo not in ('reposicao', 'recorrente', 'experimental'):
+            raise ValueError('Selecione um tipo de agendamento válido.')
+
         tema = request.form.get('tema', '').strip() or None
         if tema and len(tema) > 150:
             raise ValueError('O tema deve ter no máximo 150 caracteres.')
 
-        id_aula_origem = request.form.get('reposicao_de', type=int)
+        id_aula_origem = (
+            request.form.get('reposicao_de', type=int)
+            if modo == 'reposicao' else None
+        )
+        if modo == 'reposicao' and not id_aula_origem:
+            raise ValueError('Selecione a aula original para a reposição.')
+
         id_aluno = request.form.get('id_aluno', type=int)
         if id_aula_origem:
             cursor.execute("""
@@ -665,7 +788,7 @@ def nova_aula():
         )
         data_hora = validar_horario_aula(request.form.get('data_hora'))
 
-        if request.form.get('modo') == 'recorrente' and not id_aula_origem:
+        if modo == 'recorrente':
             cursor.execute("""
                 SELECT timezone('America/Sao_Paulo', CURRENT_TIMESTAMP)::date
             """)
@@ -726,10 +849,12 @@ def nova_aula():
                 data_hora,
                 id_aula_origem=id_aula_origem,
                 ids_materiais=ids_materiais,
+                tipo_aula=modo.upper(),
             )
             mensagem = (
                 'Aula de reposição agendada com sucesso!'
-                if id_aula_origem else 'Aula agendada com sucesso!'
+                if modo == 'reposicao'
+                else 'Aula experimental agendada com sucesso!'
             )
 
         conexao.commit()
@@ -795,7 +920,7 @@ def listar_aulas():
             consulta = """
                 SELECT a.id_aula, a.data_hora, a.tema, a.status,
                        COALESCE(al.nome, 'Não vinculado'), p.nome,
-                       COALESCE(aa.revisar, FALSE)
+                       COALESCE(aa.revisar, FALSE), a.tipo_aula
                 FROM public.aula AS a
                 JOIN public.professor AS p ON p.id_professor = a.id_professor
                 LEFT JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
@@ -805,7 +930,7 @@ def listar_aulas():
         else:
             consulta = """
                 SELECT a.id_aula, a.data_hora, a.tema, a.status,
-                       al.nome, p.nome, COALESCE(aa.revisar, FALSE)
+                       al.nome, p.nome, COALESCE(aa.revisar, FALSE), a.tipo_aula
                 FROM public.aula AS a
                 JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
                 JOIN public.aluno AS al ON al.id_aluno = aa.id_aluno
@@ -846,9 +971,7 @@ def editar_aula_form(id_aula):
             flash('Aula não encontrada.', 'danger')
             return redirect(url_for('listar_aulas'))
 
-        cursor.execute("SELECT id_tema, titulo FROM public.tema ORDER BY titulo")
-        temas = cursor.fetchall()
-        return render_template('editar_aula.html', aula=aula, temas=temas)
+        return render_template('editar_aula.html', aula=aula)
     finally:
         cursor.close()
         conexao.close()
@@ -858,6 +981,9 @@ def editar_aula_form(id_aula):
 @login_required('PROFESSOR')
 def atualizar_aula(id_aula):
     tema = request.form.get('tema', '').strip() or None
+    if tema and len(tema) > 150:
+        flash('O tema deve ter no máximo 150 caracteres.', 'warning')
+        return redirect(url_for('editar_aula_form', id_aula=id_aula))
     status = request.form.get('status')
     if status not in ('AGENDADA', 'CONCLUIDA', 'CANCELADA', 'REAGENDADA'):
         flash('Status de aula inválido.', 'warning')
@@ -994,7 +1120,7 @@ def detalhes_aula(id_aula):
         cursor.execute("""
             SELECT a.id_aula, a.data_hora, a.tema, a.status,
                    p.nome, al.nome, aa.nota_autoavaliacao,
-                   aa.nota_oficial, COALESCE(aa.revisar, FALSE)
+                   aa.nota_oficial, COALESCE(aa.revisar, FALSE), a.tipo_aula
             FROM public.aula AS a
             JOIN public.professor AS p ON p.id_professor = a.id_professor
             LEFT JOIN public.aula_aluno AS aa ON aa.id_aula = a.id_aula
@@ -1117,28 +1243,136 @@ def listar_materiais():
         cursor.close()
         conexao.close()
 
+
+@app.route('/materiais/<int:id_material>/arquivo')
+@login_required()
+def abrir_material(id_material):
+    conexao = psycopg2.connect(DATABASE_URL)
+    cursor = conexao.cursor()
+    try:
+        cursor.execute("""
+            SELECT link_arquivo
+            FROM public.material_didatico
+            WHERE id_material = %s
+        """, (id_material,))
+        registro = cursor.fetchone()
+    finally:
+        cursor.close()
+        conexao.close()
+
+    if not registro:
+        flash('Material não encontrado.', 'warning')
+        return redirect(url_for('listar_materiais'))
+
+    link_arquivo = registro[0] or ''
+    if link_arquivo.startswith('s3://'):
+        chave = link_arquivo[5:]
+        if not chave.startswith('materiais/'):
+            app.logger.error('Chave S3 inválida para o material %s.', id_material)
+            flash('Não foi possível abrir o arquivo.', 'danger')
+            return redirect(url_for('listar_materiais'))
+        try:
+            url = cliente_armazenamento().generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': app.config['S3_BUCKET'],
+                    'Key': chave,
+                },
+                ExpiresIn=600,
+            )
+        except (BotoCoreError, ClientError, RuntimeError):
+            app.logger.exception('Erro ao criar link temporário para material %s.', id_material)
+            flash('Não foi possível abrir o arquivo. Tente novamente mais tarde.', 'danger')
+            return redirect(url_for('listar_materiais'))
+        return redirect(url)
+
+    partes_url = urlsplit(link_arquivo)
+    if partes_url.scheme not in ('http', 'https') or not partes_url.netloc:
+        flash('O link deste material é inválido.', 'danger')
+        return redirect(url_for('listar_materiais'))
+    return redirect(link_arquivo)
+
+
 @app.route('/materiais/novo', methods=['GET', 'POST'])
 @login_required('PROFESSOR')
 def novo_material():
     """Rota para o professor adicionar um novo material"""
     if request.method == 'POST':
-        titulo = request.form.get('titulo')
-        descricao = request.form.get('descricao')
-        link_arquivo = request.form.get('link_arquivo')
-        
-        conexao = psycopg2.connect(DATABASE_URL)
-        cursor = conexao.cursor()
+        titulo = (request.form.get('titulo') or '').strip()
+        descricao = (request.form.get('descricao') or '').strip()
+        link_externo = (request.form.get('link_arquivo') or '').strip()
+        arquivo = request.files.get('arquivo')
+        arquivo_tem_conteudo = bool(arquivo and arquivo.filename)
+        chave_armazenada = None
+        arquivo_enviado = False
+        conexao = None
+        cursor = None
         try:
+            if not titulo or not descricao:
+                raise ValueError('Informe o título e a descrição do material.')
+            if not arquivo_tem_conteudo and not link_externo:
+                raise ValueError('Anexe um PDF/PPT/PPTX ou informe um link.')
+            if arquivo_tem_conteudo and link_externo:
+                raise ValueError('Escolha anexar um arquivo ou informar um link, não ambos.')
+
+            if arquivo_tem_conteudo:
+                nome, extensao, tipo = validar_arquivo_material(arquivo)
+                chave_armazenada = f'materiais/{uuid.uuid4().hex}{extensao}'
+                cliente_armazenamento().upload_fileobj(
+                    arquivo.stream,
+                    app.config['S3_BUCKET'],
+                    chave_armazenada,
+                    ExtraArgs={
+                        'ContentType': tipo,
+                        'ContentDisposition': (
+                            f"attachment; filename*=UTF-8''{quote(nome)}"
+                        ),
+                    },
+                )
+                arquivo_enviado = True
+                link_arquivo = f's3://{chave_armazenada}'
+            else:
+                partes_url = urlsplit(link_externo)
+                if partes_url.scheme not in ('http', 'https') or not partes_url.netloc:
+                    raise ValueError('Informe um link HTTP ou HTTPS válido.')
+                link_arquivo = link_externo
+
+            conexao = psycopg2.connect(DATABASE_URL)
+            cursor = conexao.cursor()
             cursor.execute("""
-                INSERT INTO Material_Didatico (id_professor, titulo, descricao, link_arquivo) 
+                INSERT INTO public.material_didatico
+                    (id_professor, titulo, descricao, link_arquivo)
                 VALUES (%s, %s, %s, %s)
             """, (session.get('user_id'), titulo, descricao, link_arquivo))
             conexao.commit()
             flash('Material adicionado com sucesso!', 'success')
             return redirect(url_for('listar_materiais'))
+        except ValueError as erro:
+            if conexao is not None:
+                conexao.rollback()
+            if arquivo_enviado:
+                try:
+                    excluir_arquivo_armazenado(chave_armazenada)
+                except (BotoCoreError, ClientError, RuntimeError):
+                    app.logger.exception('Erro ao limpar arquivo após upload inválido.')
+            flash(str(erro), 'warning')
+            return redirect(url_for('novo_material'))
+        except (psycopg2.Error, BotoCoreError, ClientError, RuntimeError):
+            if conexao is not None:
+                conexao.rollback()
+            app.logger.exception('Erro ao salvar material didático.')
+            if arquivo_enviado:
+                try:
+                    excluir_arquivo_armazenado(chave_armazenada)
+                except (BotoCoreError, ClientError, RuntimeError):
+                    app.logger.exception('Erro ao limpar arquivo após falha ao salvar material.')
+            flash('Não foi possível salvar o material. Verifique a configuração e tente novamente.', 'danger')
+            return redirect(url_for('novo_material'))
         finally:
-            cursor.close()
-            conexao.close()
+            if cursor is not None:
+                cursor.close()
+            if conexao is not None:
+                conexao.close()
             
     return render_template('novo_material.html')
 
@@ -1400,168 +1634,7 @@ def excluir_professor(id_professor):
 
 
 # ==================================================
-# 8. GESTÃO DE TEMAS
-# ==================================================
-
-@app.route('/temas/novo', methods=['POST'])
-@login_required('PROFESSOR')
-def novo_tema():
-    titulo = request.form.get('nome_tema', '').strip()
-    if not titulo:
-        flash('Informe o nome do tema.', 'warning')
-        return redirect(url_for('nova_aula'))
-
-    conexao = psycopg2.connect(DATABASE_URL)
-    cursor = conexao.cursor()
-    try:
-        cursor.execute(
-            "INSERT INTO public.tema (titulo) VALUES (%s)",
-            (titulo,)
-        )
-        conexao.commit()
-        flash('Tema cadastrado com sucesso!', 'success')
-    except Exception:
-        conexao.rollback()
-        raise
-    finally:
-        cursor.close()
-        conexao.close()
-    return redirect(url_for('nova_aula'))
-
-
-# Rota para Listar e Cadastrar Temas
-@app.route('/temas', methods=['GET', 'POST'])
-@login_required('PROFESSOR') # Ou o nível de acesso que preferir
-def gerenciar_temas():
-    conexao = psycopg2.connect(DATABASE_URL)
-    cursor = conexao.cursor()
-
-
-    if request.method == 'POST':
-        titulo = request.form.get('titulo')
-        descricao = request.form.get('descricao')
-       
-        cursor.execute(
-            "INSERT INTO Tema (titulo, descricao) VALUES (%s, %s)",
-            (titulo, descricao)
-        )
-        conexao.commit()
-        flash('Tema cadastrado com sucesso!', 'success')
-        return redirect(url_for('gerenciar_temas'))
-
-
-    # Busca todos os temas cadastrados
-    cursor.execute("SELECT id_tema, titulo, descricao FROM Tema ORDER BY id_tema DESC")
-    temas = cursor.fetchall()
-   
-    cursor.close()
-    conexao.close()
-    return render_template('temas.html', temas=temas)
-
-
-# Rota para Ver Detalhes do Tema e Materiais Relacionados
-@app.route('/temas/<int:id_tema>')
-@login_required('PROFESSOR')
-def detalhe_tema(id_tema):
-    conexao = psycopg2.connect(DATABASE_URL)
-    cursor = conexao.cursor()
-
-
-    # Busca o tema específico
-    cursor.execute("SELECT id_tema, titulo, descricao FROM Tema WHERE id_tema = %s", (id_tema,))
-    tema = cursor.fetchone()
-
-
-    if not tema:
-        flash('Tema não encontrado.', 'danger')
-        return redirect(url_for('gerenciar_temas'))
-
-
-    # Como a tabela Material_Didatico não tem FK direta para id_tema,
-    # podemos buscar os materiais cujo título/descrição corresponda ou relacioná-los pelo título do tema:
-    cursor.execute(
-        "SELECT id_material, titulo, descricao, link_arquivo FROM Material_Didatico WHERE descricao ILIKE %s OR titulo ILIKE %s",
-        (f"%{tema[1]}%", f"%{tema[1]}%")
-    )
-    materiais = cursor.fetchall()
-
-
-    cursor.close()
-    conexao.close()
-    return render_template('detalhe_tema.html', tema=tema, materiais=materiais)
-
-
-# Rota para Exibir o Formulário de Edição do Tema
-@app.route('/temas/editar/<int:id_tema>', methods=['GET'])
-@login_required('PROFESSOR')
-def editar_tema_form(id_tema):
-    conexao = psycopg2.connect(DATABASE_URL)
-    cursor = conexao.cursor()
-
-
-    cursor.execute("SELECT id_tema, titulo, descricao FROM Tema WHERE id_tema = %s", (id_tema,))
-    tema = cursor.fetchone()
-
-
-    cursor.close()
-    conexao.close()
-
-
-    if not tema:
-        flash('Tema não encontrado.', 'danger')
-        return redirect(url_for('gerenciar_temas'))
-
-
-    return render_template('editar_tema.html', tema=tema)
-
-
-# Rota para Salvar as Alterações do Tema
-@app.route('/temas/atualizar/<int:id_tema>', methods=['POST'])
-@login_required('PROFESSOR')
-def atualizar_tema(id_tema):
-    titulo = request.form.get('titulo')
-    descricao = request.form.get('descricao')
-
-
-    conexao = psycopg2.connect(DATABASE_URL)
-    cursor = conexao.cursor()
-
-
-    cursor.execute(
-        "UPDATE Tema SET titulo = %s, descricao = %s WHERE id_tema = %s",
-        (titulo, descricao, id_tema)
-    )
-    conexao.commit()
-
-
-    cursor.close()
-    conexao.close() # Garante que fecha a 'conexao' aberta acima
-
-
-    flash('Tema atualizado com sucesso!', 'success')
-    return redirect(url_for('gerenciar_temas'))
-
-
-# Rota para Excluir Tema
-@app.route('/temas/excluir/<int:id_tema>', methods=['POST'])
-@login_required('PROFESSOR')
-def excluir_tema(id_tema):
-    conexao = psycopg2.connect(DATABASE_URL)
-    cursor = conexao.cursor()
-
-
-    cursor.execute("DELETE FROM Tema WHERE id_tema = %s", (id_tema,))
-    conexao.commit()
-
-
-    cursor.close()
-    conexao.close()
-    flash('Tema excluído com sucesso!', 'info')
-    return redirect(url_for('gerenciar_temas'))
-
-
-# ==================================================
-# 9. INICIALIZAÇÃO DO SERVIDOR
+# 8. INICIALIZAÇÃO DO SERVIDOR
 # ==================================================
 if __name__ == '__main__':
     app.run(debug=True)

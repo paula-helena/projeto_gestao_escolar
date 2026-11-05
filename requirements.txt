@@ -1,5 +1,6 @@
 bcrypt==5.0.0
 blinker==1.9.0
+boto3==1.43.124
 click==8.5.0
 dotenv==0.9.9
 Flask==3.1.3
