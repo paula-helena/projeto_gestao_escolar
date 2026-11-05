@@ -1035,6 +1035,7 @@ def calendario_aulas():
             dias=dias,
             inicio=inicio,
             fim=fim,
+            hoje=agora.date(),
             anterior=anterior,
             proximo=proximo,
             aulas_por_data=aulas_por_data,

@@ -224,6 +224,47 @@ class AgendaRouteTests(unittest.TestCase):
         self.assertEqual(mes.status_code, 200)
         self.assertIn('Novembro 2026', mes.get_data(as_text=True))
 
+    def test_calendario_aplica_cores_e_recolhe_acoes_no_menu(self):
+        conexao = FakeConnection()
+        cursor_original = conexao.fake_cursor
+        aulas = [
+            (10, datetime(2026, 10, 31, 9), 'Passada', 'AGENDADA',
+             'Aluno Teste', 'Professor Teste', None, 'EXPERIMENTAL'),
+            (11, datetime(2026, 11, 2, 10), 'Reposição', 'REAGENDADA',
+             'Aluno Teste', 'Professor Teste', None, 'RECORRENTE'),
+            (12, datetime(2026, 11, 3, 11), 'Cancelada', 'CANCELADA',
+             'Aluno Teste', 'Professor Teste', None, 'EXPERIMENTAL'),
+            (13, datetime(2026, 11, 4, 12), 'Futura', 'AGENDADA',
+             'Aluno Teste', 'Professor Teste', None, 'EXPERIMENTAL'),
+        ]
+        fetchall_original = cursor_original.fetchall
+
+        def buscar_linhas():
+            if 'ORDER BY a.data_hora, a.id_aula' in cursor_original.query:
+                return aulas
+            return fetchall_original()
+
+        cursor_original.fetchall = buscar_linhas
+        with patch.object(app.psycopg2, 'connect', return_value=conexao):
+            resposta = self.client.get('/calendario?visualizacao=mes&data=2026-11-02')
+
+        self.assertEqual(resposta.status_code, 200)
+        pagina = resposta.get_data(as_text=True)
+        self.assertIn('Passada', pagina)
+        self.assertIn('bg-success-subtle border-success', pagina)
+        self.assertIn('bg-warning-subtle border-warning', pagina)
+        self.assertIn('bg-danger-subtle border-danger', pagina)
+        self.assertIn('bg-body-tertiary border-secondary-subtle', pagina)
+        self.assertIn('data-bs-toggle="dropdown"', pagina)
+        self.assertIn('Ações da aula 10', pagina)
+        self.assertIn('Reagendar Aula', pagina)
+        self.assertNotIn('Agendar Reposição', pagina)
+        self.assertEqual(pagina.count('Detalhes Da Aula'), 4)
+        self.assertEqual(pagina.count('Editar Aula'), 4)
+        self.assertEqual(pagina.count('Cancelar Aula'), 2)
+        self.assertEqual(pagina.count('Excluir Aula'), 4)
+        self.assertEqual(pagina.count('Reagendar Aula'), 2)
+
     def test_calendario_do_aluno_abre_sem_erro(self):
         conexao = FakeConnection()
         with self.client.session_transaction() as state:

@@ -23,6 +23,12 @@
        aria-label="Próximo período">Próximo &rarr;</a>
 </div>
 
+<div class="d-flex flex-wrap gap-3 small mb-3" aria-label="Legenda do calendário">
+    <span><span class="badge bg-success-subtle border border-success text-success">&nbsp;</span> Aula De Data Passada</span>
+    <span><span class="badge bg-warning-subtle border border-warning text-warning">&nbsp;</span> Reagendada</span>
+    <span><span class="badge bg-danger-subtle border border-danger text-danger">&nbsp;</span> Cancelada</span>
+</div>
+
 <div class="table-responsive">
     <table class="table table-bordered align-middle">
         <thead class="table-light">
@@ -40,8 +46,63 @@
                             {% if visualizacao == 'mes' and dia.month != inicio.month %}background-color: #f5f5f5;{% endif %}">
                             <div class="fw-semibold mb-2">{{ dia.day }}</div>
                             {% for aula in aulas_por_data.get(dia, []) %}
-                                <div class="small border rounded p-2 mb-2 bg-light">
-                                    <div class="fw-semibold">{{ aula[1].strftime('%H:%M') }} — {{ aula[2] or 'Sem tema' }}</div>
+                                {% if aula[3] == 'CANCELADA' %}
+                                    {% set aula_classes = 'bg-danger-subtle border-danger' %}
+                                {% elif aula[3] == 'REAGENDADA' %}
+                                    {% set aula_classes = 'bg-warning-subtle border-warning' %}
+                                {% elif aula[1].date() < hoje %}
+                                    {% set aula_classes = 'bg-success-subtle border-success' %}
+                                {% else %}
+                                    {% set aula_classes = 'bg-body-tertiary border-secondary-subtle' %}
+                                {% endif %}
+                                <div class="calendar-lesson small border rounded p-2 mb-2 {{ aula_classes }}">
+                                    <div class="d-flex justify-content-between align-items-start gap-1">
+                                        <div class="fw-semibold">{{ aula[1].strftime('%H:%M') }} — {{ aula[2] or 'Sem tema' }}</div>
+                                        <div class="dropdown flex-shrink-0">
+                                            <button class="btn btn-sm btn-link text-body p-0 border-0"
+                                                    type="button" data-bs-toggle="dropdown"
+                                                    aria-expanded="false"
+                                                    aria-label="Ações da aula {{ aula[0] }}">
+                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                <li>
+                                                    <a class="dropdown-item"
+                                                       href="{{ url_for('detalhes_aula', id_aula=aula[0]) }}">Detalhes Da Aula</a>
+                                                </li>
+                                                {% if perfil == 'PROFESSOR' %}
+                                                    <li>
+                                                        <a class="dropdown-item"
+                                                           href="{{ url_for('editar_aula_form', id_aula=aula[0]) }}">Editar Aula</a>
+                                                    </li>
+                                                    {% if aula[3] in ('AGENDADA', 'CONCLUIDA') %}
+                                                        <li>
+                                                            <form action="{{ url_for('cancelar_aula', id_aula=aula[0]) }}"
+                                                                  method="POST"
+                                                                  onsubmit="return confirm('Cancelar esta aula?');">
+                                                                <button type="submit" class="dropdown-item">Cancelar Aula</button>
+                                                            </form>
+                                                        </li>
+                                                        <li>
+                                                            <form action="{{ url_for('iniciar_reagendamento', id_aula=aula[0]) }}"
+                                                                  method="POST"
+                                                                  onsubmit="return confirm('Cancelar esta aula e agendar uma reposição?');">
+                                                                <button type="submit" class="dropdown-item">Reagendar Aula</button>
+                                                            </form>
+                                                        </li>
+                                                    {% endif %}
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <form action="{{ url_for('excluir_aula', id_aula=aula[0]) }}"
+                                                              method="POST"
+                                                              onsubmit="return confirm('Excluir esta aula?');">
+                                                            <button type="submit" class="dropdown-item text-danger">Excluir Aula</button>
+                                                        </form>
+                                                    </li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+                                    </div>
                                     {% if perfil == 'PROFESSOR' %}
                                         <div>{{ aula[4] or 'Aluno não vinculado' }}</div>
                                     {% else %}
@@ -51,31 +112,6 @@
                                     {% if aula[6] %}
                                         <a href="{{ aula[6] }}" target="_blank" rel="noopener noreferrer">Abrir Meet</a>
                                     {% endif %}
-                                    <div class="d-flex flex-wrap gap-1 mt-2">
-                                        <a class="btn btn-sm btn-outline-primary"
-                                           href="{{ url_for('detalhes_aula', id_aula=aula[0]) }}">Detalhes Da Aula</a>
-                                        {% if perfil == 'PROFESSOR' %}
-                                            <a class="btn btn-sm btn-outline-secondary"
-                                               href="{{ url_for('editar_aula_form', id_aula=aula[0]) }}">Editar Aula</a>
-                                            {% if aula[3] in ('AGENDADA', 'CONCLUIDA') %}
-                                                <form action="{{ url_for('cancelar_aula', id_aula=aula[0]) }}"
-                                                      method="POST"
-                                                      onsubmit="return confirm('Cancelar esta aula?');">
-                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Cancelar Aula</button>
-                                                </form>
-                                                <form action="{{ url_for('iniciar_reagendamento', id_aula=aula[0]) }}"
-                                                      method="POST"
-                                                      onsubmit="return confirm('Cancelar esta aula e agendar uma reposição?');">
-                                                    <button type="submit" class="btn btn-sm btn-outline-warning">Agendar Reposição</button>
-                                                </form>
-                                            {% endif %}
-                                            <form action="{{ url_for('excluir_aula', id_aula=aula[0]) }}"
-                                                  method="POST"
-                                                  onsubmit="return confirm('Excluir esta aula?');">
-                                                <button type="submit" class="btn btn-sm btn-danger">Excluir Aula</button>
-                                            </form>
-                                        {% endif %}
-                                    </div>
                                 </div>
                             {% endfor %}
                         </td>
