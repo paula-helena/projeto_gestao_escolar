@@ -60,10 +60,15 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.autenticar('PROFESSOR', is_admin=True)
 
         resposta = self.client.get('/alunos')
+        pagina = resposta.get_data(as_text=True)
 
         self.assertEqual(resposta.status_code, 200)
-        self.assertIn('Cadastrar Aluno', resposta.get_data(as_text=True))
-        self.assertIn('/cadastro-aluno', resposta.get_data(as_text=True))
+        self.assertIn('class="row mb-4 align-items-center"', pagina)
+        self.assertIn('class="col-auto"', pagina)
+        self.assertIn('class="btn btn-primary fw-bold shadow-sm"', pagina)
+        self.assertIn('Consulte e gerencie os alunos cadastrados na plataforma.', pagina)
+        self.assertIn('Cadastrar Aluno', pagina)
+        self.assertIn('/cadastro-aluno', pagina)
 
     @patch('app.psycopg2.connect')
     def test_tela_gerenciar_professores_exibe_botao_de_cadastro_apenas_para_admin(
@@ -79,10 +84,15 @@ class NavegacaoESenhaTests(unittest.TestCase):
         self.autenticar('PROFESSOR', is_admin=True)
 
         resposta = self.client.get('/professores')
+        pagina = resposta.get_data(as_text=True)
 
         self.assertEqual(resposta.status_code, 200)
-        self.assertIn('Cadastrar Professor', resposta.get_data(as_text=True))
-        self.assertIn('/cadastro-professor', resposta.get_data(as_text=True))
+        self.assertIn('class="row mb-4 align-items-center"', pagina)
+        self.assertIn('class="col-auto"', pagina)
+        self.assertIn('class="btn btn-primary fw-bold shadow-sm"', pagina)
+        self.assertIn('Consulte e gerencie os professores cadastrados na plataforma.', pagina)
+        self.assertIn('Cadastrar Professor', pagina)
+        self.assertIn('/cadastro-professor', pagina)
 
     @patch('app.psycopg2.connect')
     def test_professor_comum_pode_consultar_alunos_sem_botao_cadastrar(self, conectar):
